@@ -28,7 +28,7 @@ def point_side(p1, p2, point):
 track_history = {}  # {track_id: list of (cx, cy)}
 track_positions = {}  # {track_id: current centroid}
 next_id = 0
-max_distance = 150  # pixels
+max_distance = 90  # pixels
 
 # Line crossing counters
 line_counts = {line["label"]: 0 for line in lines}
@@ -37,7 +37,7 @@ crossed = {}  # {track_id: set([crossed_line_labels])}
 # Run YOLO predictions
 results = model.predict(
     source="./temp/masked_video.mp4",
-    conf=0.2,
+    conf=0.3,
     classes=[8],  # only boats
     stream=True
 )
@@ -45,6 +45,9 @@ results = model.predict(
 for r in results:
     frame = r.orig_img.copy()
     current_centroids = []
+
+    for line in lines:
+        cv2.line(frame, line["p1"], line["p2"], (255,0,0), 2)
 
     # Compute current centroids
     for box in r.boxes.xyxy:
@@ -87,16 +90,12 @@ for r in results:
                     next_id += 1
 
     # Draw tracks and bounding boxes
+    # Build a reverse mapping: centroid -> track_id
+    centroid_to_id = {tuple(pos): tid for tid, pos in track_positions.items()}
     for idx, box in enumerate(r.boxes.xyxy):
         x1, y1, x2, y2 = map(int, box.tolist())
-        # Find closest centroid to this box
         cx, cy = (x1 + x2)//2, (y1 + y2)//2
-        # Find track ID
-        tid = None
-        for id_, pos in track_positions.items():
-            if np.linalg.norm(np.array([cx, cy]) - np.array(pos)) < max_distance:
-                tid = id_
-                break
+        tid = centroid_to_id.get((cx, cy))
         if tid is None:
             continue
         conf = float(r.boxes.conf[idx])
@@ -127,6 +126,12 @@ for r in results:
                                 0.9,
                                 (0,0,255),
                                 2)
+    
+    # Draw trajectories
+    for tid, path in track_history.items():
+        if len(path) > 1:
+            pts = np.array(path, np.int32).reshape((-1, 1, 2))
+            cv2.polylines(frame, [pts], False, (0, 165, 255), 2)  # orange
 
     cv2.imshow("Centroid Tracker", frame)
     if cv2.waitKey(1) & 0xFF == ord("q"):
@@ -143,9 +148,8 @@ labels = list(line_counts.keys())
 counts = [line_counts[label] for label in labels]
 
 plt.figure(figsize=(8,5))
-plt.bar(labels, counts, color='skyblue')
+plt.bar(labels, counts, color='blue')
 plt.xlabel("Lines")
 plt.ylabel("Number of boats")
 plt.title("Number of boats that crossed each line")
-plt.grid(axis='y', linestyle='--', alpha=0.7)
 plt.show()
