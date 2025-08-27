@@ -8,7 +8,7 @@ from scipy.spatial.distance import cdist
 model = YOLO("yolo11n.pt")
 
 # Load lines from JSON
-with open("./temp/TLC00010_extrait_lines.json", "r") as f:
+with open("./temp/TLC00000_extrait_lines.json", "r") as f:
     data = json.load(f)
 lines = []
 for line in data["lines"]:
@@ -37,7 +37,7 @@ crossed = {}  # {track_id: set([crossed_line_labels])}
 # Run YOLO predictions
 results = model.predict(
     source="./temp/masked_video.mp4",
-    conf=0.3,
+    conf=0.2,
     classes=[8],  # only boats
     stream=True
 )

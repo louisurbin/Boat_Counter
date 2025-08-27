@@ -25,7 +25,7 @@ def point_side(p1, p2, point):
     return (x2 - x1)*(y - y1) - (y2 - y1)*(x - x1)
 
 # Initialize SORT tracker
-tracker = Sort(max_age=10, min_hits=2, iou_threshold=0.2)
+tracker = Sort(max_age=20, min_hits=2, iou_threshold=0.1)
 
 track_history = {}  # {track_id: list of (cx, cy)}
 crossed = {}        # {track_id: set([crossed_line_labels])}
@@ -36,7 +36,8 @@ results = model.predict(
     source="./temp/masked_video.mp4",
     conf=0.1,  # seuil abaissé pour petits objets
     classes=[8],  # only boats
-    stream=True
+    stream=True,
+    #imgsz=1024
 )
 
 for r in results:

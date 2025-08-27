@@ -260,7 +260,7 @@ def parse_args():
     parser.add_argument("--phase", help="Subdirectory in seq_path.", type=str, default='train')
     parser.add_argument("--max_age", 
                         help="Maximum number of frames to keep alive a track without associated detections.", 
-                        type=int, default=1)
+                        type=int, default=3)
     parser.add_argument("--min_hits", 
                         help="Minimum number of associated detections before track is initialised.", 
                         type=int, default=3)
