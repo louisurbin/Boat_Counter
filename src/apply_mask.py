@@ -19,7 +19,7 @@ def apply_mask_to_video(video_path, mask_path, out_path):
     w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     out = cv2.VideoWriter(out_path, fourcc, fps, (w, h))
-
+    
     # Resize mask if needed
     if mask.shape != (h, w):
         mask = cv2.resize(mask, (w, h), interpolation=cv2.INTER_NEAREST)

@@ -134,6 +134,8 @@ for r in results:
             cv2.polylines(frame, [pts], False, (0, 165, 255), 2)  # orange
 
     cv2.imshow("Centroid Tracker", frame)
+    if cv2.getWindowProperty("Centroid Tracker", cv2.WND_PROP_VISIBLE) < 1:
+        break
     if cv2.waitKey(1) & 0xFF == ord("q"):
         break
 

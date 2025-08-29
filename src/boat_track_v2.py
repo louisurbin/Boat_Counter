@@ -9,7 +9,7 @@ import os
 model = YOLO("yolo11n.pt")
 
 # Load lines from JSON
-with open("./temp/TLC00010_extrait_lines.json", "r") as f:
+with open("./temp/TLC00002_extrait_lines.json", "r") as f:
     data = json.load(f)
 lines = []
 for line in data["lines"]:

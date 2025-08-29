@@ -1,0 +1,30 @@
+# ByteTrack configuration tuned for low-FPS, small boats
+# Reference: Ultralytics tracker config schema (ByteTrack)
+# Key parameters adapted:
+# - track_high_thresh: low to keep more tentative tracks at low fps
+# - track_low_thresh: lower to accept detections with lower conf between keyframes
+# - new_track_thresh: equal/close to track_high_thresh to create tracks easily
+# - match_thresh: bit lower to allow looser association when motion is large per frame
+# - camera_motion: false assuming static camera; set true if panning
+
+tracker_type: bytetrack
+
+mot20: false
+track_high_thresh: 0.3
+track_low_thresh: 0.05
+new_track_thresh: 0.3
+match_thresh: 0.7
+track_buffer: 80  # number of frames to keep lost tracks; helps low-FPS continuity
+min_box_area: 10
+fuse_score: false  # required by recent Ultralytics; set true to fuse detection score in association
+
+# Kalman filter and ioU-similar settings (kept defaults if not sure)
+frame_rate: 10  # used by some heuristics; align with your video fps
+
+# Optional: appearance embedding disabled for classic ByteTrack
+proximity_thresh: 0.5
+appearance_thresh: 0.25
+
+# If the camera is moving, set:
+# use_byte: true
+# camera_motion: true
