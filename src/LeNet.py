@@ -6,24 +6,62 @@ import torch.optim as optim
 from torchvision import transforms, datasets
 from torch.utils.data import DataLoader
 
+# TRAINING HYPERPARAMÈTRES 
+DEFAULT_BATCH_SIZE = 32
+DEFAULT_EPOCHS = 10
+DEFAULT_LR = 1e-3
+DEFAULT_WEIGHT_DECAY = 0.0
+DEFAULT_OPTIMIZER = "adam"       # "adam" ou "sgd"
+DEFAULT_DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+DEFAULT_RESIZE = 128             # taille d'entrée (128x128)
+DEFAULT_NUM_CLASSES = 7
+DEFAULT_DROPOUT = 0.5
+DEFAULT_SAVE_PATH = "lenet.pth"
+DEFAULT_NUM_WORKERS = 4
+RANDOM_SEED = 42
+LOG_INTERVAL = 10                # affichage toutes les N itérations
+
 class LeNet(nn.Module):
-	def __init__(self, in_channels=3, num_classes=2):
+	def __init__(self, in_channels=3, num_classes=2, dropout=0.5):
 		super().__init__()
-		self.conv1 = nn.Conv2d(in_channels, 6, kernel_size=5, padding=2)
-		self.relu = nn.ReLU()
-		self.pool = nn.AvgPool2d(2)
-		self.conv2 = nn.Conv2d(6, 16, kernel_size=5)
-		# after two pools, spatial depends on input size; we will flatten dynamically
-		self.fc1 = nn.Linear(16 * 5 * 5, 120)  # assumes input resized to 32x32 by default
-		self.fc2 = nn.Linear(120, 84)
-		self.fc3 = nn.Linear(84, num_classes)
+		# Conv1: 128x128 -> (128 - 5 +1)=124 -> Pool1 -> 62
+		self.conv1 = nn.Conv2d(in_channels, 32, kernel_size=5, padding=0)
+		self.relu = nn.ReLU(inplace=True)
+		self.pool1 = nn.MaxPool2d(kernel_size=2, stride=2)
+
+		# Conv2: 62 -> (62 - 5 +1)=58 -> Pool2 -> 29
+		self.conv2 = nn.Conv2d(32, 64, kernel_size=5, padding=0)
+		self.pool2 = nn.MaxPool2d(kernel_size=2, stride=2)
+
+		# Conv3: 29 -> (29 - 3 +1)=27 -> Pool3 -> 13
+		self.conv3 = nn.Conv2d(64, 128, kernel_size=3, padding=0)
+		self.pool3 = nn.MaxPool2d(kernel_size=2, stride=2)
+
+		# After Pool3 spatial size = 13 x 13, channels = 128
+		flat_feats = 128 * 13 * 13
+
+		# Fully connected head
+		self.fc1 = nn.Linear(flat_feats, 512)
+		self.fc2 = nn.Linear(512, 128)
+		self.fc3 = nn.Linear(128, num_classes)
+		self.dropout = nn.Dropout(p=dropout)
 
 	def forward(self, x):
-		x = self.pool(self.relu(self.conv1(x)))
-		x = self.pool(self.relu(self.conv2(x)))
+		# x expected resize -> 128x128 by the preprocessing/transforms
+		x = self.relu(self.conv1(x))
+		x = self.pool1(x)         # -> 62x62
+
+		x = self.relu(self.conv2(x))
+		x = self.pool2(x)         # -> 29x29
+
+		x = self.relu(self.conv3(x))
+		x = self.pool3(x)         # -> 13x13
+
 		x = x.view(x.size(0), -1)
 		x = self.relu(self.fc1(x))
+		x = self.dropout(x)
 		x = self.relu(self.fc2(x))
+		x = self.dropout(x)
 		x = self.fc3(x)
 		return x
 
@@ -51,7 +89,8 @@ def main():
 	parser.add_argument("--epochs", type=int, default=10)
 	parser.add_argument("--batch", type=int, default=32)
 	parser.add_argument("--lr", type=float, default=1e-3)
-	parser.add_argument("--resize", type=int, default=32, help="Resize short side to N (use square Resize)")
+	parser.add_argument("--resize", type=int, default=128, help="Resize short side to N (use square Resize). default=128 for 128x128 input")
+	parser.add_argument("--num-classes", type=int, default=7, help="Default number of classes if not inferred from dataset (default=7)")
 	parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
 	args = parser.parse_args()
 
@@ -64,7 +103,11 @@ def main():
 	ds = datasets.ImageFolder(args.data, transform=trans)
 	loader = DataLoader(ds, batch_size=args.batch, shuffle=True, num_workers=4, pin_memory=True)
 
-	num_classes = len(ds.classes)
+	# determine num_classes: prefer dataset classes, else CLI default
+	num_classes = args.num_classes
+	if hasattr(ds, 'classes') and len(ds.classes) > 0:
+		num_classes = len(ds.classes)
+
 	device = torch.device(args.device)
 	model = LeNet(in_channels=3, num_classes=num_classes).to(device)
 
