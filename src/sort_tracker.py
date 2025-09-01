@@ -3,6 +3,8 @@ import numpy as np
 import argparse
 import time
 import math
+import os
+import tempfile
 
 # Example usage: python ./src/sort_tracker.py -v input_video.mp4 -s output_video.mp4 
 
@@ -482,6 +484,8 @@ def parse_args():
 	p.add_argument("--min_track_side", type=int, default=MIN_TRACK_SIDE, help=f"Minimum side length (px) for tracked boxes. 0 = auto from area. default={MIN_TRACK_SIDE}")
 	p.add_argument("--watershed_bottom_margin", type=int, default=WATERSHED_BOTTOM_MARGIN, help=f"Pixels from bottom where watershed splitting is disabled. default={WATERSHED_BOTTOM_MARGIN}")
 	p.add_argument("--new_iou_gate", type=float, default=NEW_IOU_GATE, help=f"IoU threshold to avoid creating duplicate new IDs. default={NEW_IOU_GATE}")
+	# new: path to the real color video to use for extracting crops (optional)
+	p.add_argument("--color", "-c", default=None, help="Path to real color video to extract crops from (optional). If omitted uses --video")
 	return p.parse_args()
 
 def open_capture(src):
@@ -511,6 +515,12 @@ def main():
 	                      min_track_side=(args.min_track_side if args.min_track_side > 0 else None),
 	                      new_iou_gate=args.new_iou_gate)
 
+	# prepare temp folder to save per-ID crops (use local ./temp/extractions)
+	# previously used ./temp; now store in ./temp/extractions
+	base_temp = os.path.abspath(os.path.join(".", "temp", "extractions"))
+	os.makedirs(base_temp, exist_ok=True)
+	save_counts = {}  # id -> saved image count
+
 	# optional writer for first pass (created on first successful read to get frame size & fps)
 	writer_first = None
 	fps = cap.get(cv2.CAP_PROP_FPS) or 20.0
@@ -532,6 +542,8 @@ def main():
 		                               large_area_factor=args.large_area_factor,
 		                               watershed_bottom_margin=args.watershed_bottom_margin)
 		objects = tracker.update(detections, frame_idx=frame_idx)
+
+		# --- NOTE: removed saving crops here (we only collect annotations). ---
 		# store a shallow copy of objects for this frame
 		frame_annotations.append(dict(objects))
 
@@ -545,6 +557,43 @@ def main():
 	# finalize trajectories and compute valid IDs
 	tracker.finalize()
 	valid_ids = tracker.filter_trajectories(min_length=args.min_track_length)
+
+	# ---------- new: extract crops from the REAL color video using stored annotations ----------
+	# choose color source (fallback to args.video if not provided)
+	color_src = args.color if args.color else args.video
+	color_cap = open_capture(color_src)
+	if not color_cap.isOpened():
+		print("Warning: impossible d'ouvrir la vidéo couleur pour l'extraction des crops:", color_src)
+	else:
+		# iterate frames of color video and save crops according to frame_annotations
+		i = 0
+		while True:
+			ret_c, frame_c = color_cap.read()
+			if not ret_c:
+				break
+			ann = frame_annotations[i] if i < len(frame_annotations) else {}
+			if ann:
+				fh_c, fw_c = frame_c.shape[:2]
+				for oid, bbox in ann.items():
+					x1, y1, x2, y2 = bbox
+					x1 = max(0, int(x1)); y1 = max(0, int(y1))
+					x2 = min(fw_c, int(x2)); y2 = min(fh_c, int(y2))
+					if x2 <= x1 or y2 <= y1:
+						continue
+					crop = frame_c[y1:y2, x1:x2]
+					oid_dir = os.path.join(base_temp, str(oid))
+					os.makedirs(oid_dir, exist_ok=True)
+					cnt = save_counts.get(oid, 0)
+					filename = f"{i:06d}.png"
+					fullpath = os.path.join(oid_dir, filename)
+					if os.path.exists(fullpath):
+						filename = f"{i:06d}_{cnt:03d}.png"
+						fullpath = os.path.join(oid_dir, filename)
+					cv2.imwrite(fullpath, crop)
+					save_counts[oid] = cnt + 1
+			i += 1
+		color_cap.release()
+	# ------------------------------------------------------------------------------------------
 
 	# print runtime (remove 'valid' count)
 	duration = time.time() - start_time
