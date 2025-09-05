@@ -1,0 +1,22 @@
+line_label	up	down	total
+out	16	0	16
+
+# Details per id (label: list of signs)
+
+[out]
+10	-1
+13	-1
+14	-1
+15	-1
+16	-1
+17	-1
+18	-1
+19	-1
+22	-1
+27	-1
+28	-1
+29	-1
+32	-1
+5	-1
+6	-1
+7	-1

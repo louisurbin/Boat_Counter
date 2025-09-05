@@ -113,8 +113,8 @@ def main():
     if args.display:
         cv2.destroyAllWindows()
 
-    print(f"Processed {frame_count} frames.")
-    print(f"Saved mask video to: {out_path}")
+    #print(f"Processed {frame_count} frames.")
+    print(f"MOG2 mask video saved at: {out_path}")
 
 if __name__ == "__main__":
     main()

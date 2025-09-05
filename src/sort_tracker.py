@@ -5,6 +5,9 @@ import time
 import math
 import os
 import tempfile
+import json
+from pathlib import Path
+import sys
 
 # Example usage: python ./src/sort_tracker.py -v input_video.mp4 -s output_video.mp4 
 
@@ -486,6 +489,8 @@ def parse_args():
 	p.add_argument("--new_iou_gate", type=float, default=NEW_IOU_GATE, help=f"IoU threshold to avoid creating duplicate new IDs. default={NEW_IOU_GATE}")
 	# new: path to the real color video to use for extracting crops (optional)
 	p.add_argument("--color", "-c", default=None, help="Path to real color video to extract crops from (optional). If omitted uses --video")
+	# new: save crossings per id
+	p.add_argument("--lines_json", default=None, help="Path to lines.json file (required for crossings)")
 	return p.parse_args()
 
 def open_capture(src):
@@ -497,10 +502,29 @@ def open_capture(src):
 
 def main():
 	args = parse_args()
+	# open main (mask/tracked) video using helper (supports webcam indices)
 	cap = open_capture(args.video)
 	if not cap.isOpened():
-		print("Erreur: impossible d'ouvrir la source", args.video)
-		return
+		print(f"Failed to open mask/tracked video: {args.video}", file=sys.stderr)
+		sys.exit(1)
+	
+	# open optional real color video for crops (use args.color if provided)
+	color_cap = None
+	if args.color:
+		color_cap = open_capture(args.color)
+		if not color_cap.isOpened():
+			print(f"Failed to open color video: {args.color}", file=sys.stderr)
+			cap.release()
+			sys.exit(1)
+
+	# Load lines for crossings
+	lines_info = None
+	if args.lines_json:
+		with open(args.lines_json, "r", encoding="utf-8") as f:
+			lines_info = json.load(f)["lines"]
+	# Prepare structure to store crossings per id
+	crossings_per_id = {}  # id -> list of (line_label, sign, frame_idx)
+	# cap is already opened above
 
 	# start timer for total execution
 	start_time = time.time()
@@ -524,8 +548,12 @@ def main():
 	# optional writer for first pass (created on first successful read to get frame size & fps)
 	writer_first = None
 	fps = cap.get(cv2.CAP_PROP_FPS) or 20.0
+	# writer for trajectories video
+	traj_video_path = os.path.join(os.path.dirname(args.save) if args.save else base_temp, "trajectories.mp4")
+	writer_traj = None
 
 	# First pass: run tracker and store per-frame assignments
+	prev_centroids = {}  # id -> previous centroid
 	while True:
 		ret, frame = cap.read()
 		if not ret:
@@ -536,16 +564,84 @@ def main():
 			h, w = frame.shape[:2]
 			fourcc = cv2.VideoWriter_fourcc(*"mp4v")
 			writer_first = cv2.VideoWriter(args.save, fourcc, fps, (w, h))
+		# create writer_traj if not yet created
+		if writer_traj is None:
+			h, w = frame.shape[:2]
+			fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+			writer_traj = cv2.VideoWriter(traj_video_path, fourcc, fps, (w, h))
 
 		detections = detect_rectangles(frame, min_area=args.min_area, thresh_val=args.thresh,
-		                               iou_thresh=args.iou, use_watershed=args.watershed,
-		                               large_area_factor=args.large_area_factor,
-		                               watershed_bottom_margin=args.watershed_bottom_margin)
+									   iou_thresh=args.iou, use_watershed=args.watershed,
+									   large_area_factor=args.large_area_factor,
+									   watershed_bottom_margin=args.watershed_bottom_margin)
 		objects = tracker.update(detections, frame_idx=frame_idx)
 
-		# --- NOTE: removed saving crops here (we only collect annotations). ---
 		# store a shallow copy of objects for this frame
 		frame_annotations.append(dict(objects))
+
+		# Crossings detection
+		if lines_info:
+			print(f"[debug] lines loaded: {len(lines_info)}")
+			for oid, bbox in objects.items():
+				cx = (bbox[0] + bbox[2]) / 2.0
+				cy = (bbox[1] + bbox[3]) / 2.0
+				prev = prev_centroids.get(oid, None)
+				if prev:
+					for line in lines_info:
+						p1 = np.array(line["p1"])
+						p2 = np.array(line["p2"])
+						# Normal orientée de bas en haut
+						line_vec = p2 - p1
+						normal = np.array([-(line_vec[1]), line_vec[0]])
+						normal = normal / (np.linalg.norm(normal) + 1e-8)
+						prod_prev = np.dot(normal, np.array([prev[0] - p1[0], prev[1] - p1[1]]))
+						prod_now = np.dot(normal, np.array([cx - p1[0], cy - p1[1]]))
+						if prod_prev * prod_now < 0:
+							A = np.array(prev)
+							B = np.array([cx, cy])
+							C = p1
+							D = p2
+							def segment_intersection(A, B, C, D):
+								BA = B - A
+								DC = D - C
+								denom = BA[0]*DC[1] - BA[1]*DC[0]
+								if abs(denom) < 1e-8:
+									return None
+								t = ((C[0]-A[0])*DC[1] - (C[1]-A[1])*DC[0]) / denom
+								u = ((C[0]-A[0])*BA[1] - (C[1]-A[1])*BA[0]) / (-denom)
+								if 0 <= t <= 1 and 0 <= u <= 1:
+									return A + t*BA
+								return None
+							inter = segment_intersection(A, B, C, D)
+							# Relax strict requirement: accept crossing if intersection found OR the signed-distance delta is significant
+							eps_signed_delta = 2.0
+							crossed = False
+							if inter is not None:
+								crossed = True
+							else:
+								if abs(prod_now - prod_prev) > eps_signed_delta:
+									# no segment intersection (possible large jump) but sign change + large delta => accept
+									crossed = True
+							if crossed:
+								# Convention demandée: +1 si le bateau "monte" (y diminue), -1 sinon
+								sign = 1 if cy < prev[1] else -1
+								crossings_per_id.setdefault(oid, []).append((line["label"], sign, frame_idx))
+								print(f"[debug] crossing detected: id={oid}, line={line['label']}, sign={sign}, frame={frame_idx}, inter={'yes' if inter is not None else 'no'}")
+				prev_centroids[oid] = (cx, cy)
+
+		# Draw trajectories and IDs on frame for video
+		traj_frame = frame.copy()
+		# Draw trajectories
+		for oid, traj in tracker.trajectories.items():
+			pts = [tuple(map(int, t[2])) for t in traj]
+			for i in range(1, len(pts)):
+				cv2.line(traj_frame, pts[i-1], pts[i], (0, 255, 255), 2)
+		# Draw bounding boxes and IDs
+		for oid, bbox in objects.items():
+			x1, y1, x2, y2 = bbox
+			cv2.rectangle(traj_frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+			cv2.putText(traj_frame, str(oid), (x1, y1 - 6), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+		writer_traj.write(traj_frame)
 
 		# write annotated frame if requested
 		if writer_first is not None:
@@ -581,6 +677,7 @@ def main():
 					if x2 <= x1 or y2 <= y1:
 						continue
 					crop = frame_c[y1:y2, x1:x2]
+					# ...rétablit la sauvegarde directe du crop couleur...
 					oid_dir = os.path.join(base_temp, str(oid))
 					os.makedirs(oid_dir, exist_ok=True)
 					cnt = save_counts.get(oid, 0)
@@ -595,6 +692,21 @@ def main():
 		color_cap.release()
 	# ------------------------------------------------------------------------------------------
 
+	# Save crossings per id in temp/extractions/id/crossings.txt
+	total_crossings = sum(len(v) for v in crossings_per_id.values())
+	print(f"[debug] saving crossings: base_dir={base_temp}, ids_with_crossings={len(crossings_per_id)}, total_crossings={total_crossings}")
+	for oid, crossings in crossings_per_id.items():
+		oid_dir = os.path.join(base_temp, str(oid))
+		os.makedirs(oid_dir, exist_ok=True)
+		txt_path = os.path.join(oid_dir, "crossings.txt")
+		with open(txt_path, "w", encoding="utf-8") as f:
+			for item in crossings:
+				# item can be (line_label, sign, frame_idx)
+				line_label, sign = item[0], item[1]
+				sens = "+1" if sign > 0 else "-1"
+				f.write(f"{line_label}\t{sens}\n")
+		print(f"[debug] wrote {len(crossings)} crossings to {txt_path}")
+# ...existing code...
 	# print runtime (remove 'valid' count)
 	duration = time.time() - start_time
 	print(f"Total trajectories: {len(tracker.completed)}, runtime: {duration:.2f}s")
@@ -606,6 +718,8 @@ def main():
 	# Second pass: replay original frames and display/save only validated tracks
 	if writer_first is not None:
 		writer_first.release()
+	if writer_traj is not None:
+		writer_traj.release()
 	cap.release()
 
 	cap = open_capture(args.video)

@@ -1,3 +1,14 @@
+
+'''
+Instructions principales :
+ - Tracer le polygone (zone d'eau) avec des clics gauches
+ - Fermer le polygone avec un clic droit
+ - Passer en mode ligne avec la touche 'l'
+ - Placer deux points (clic gauche), puis entrer le nom de la ligne directement dans la fenêtre (taper le nom puis Entrée)
+ - Touche 's' pour enregistrer le masque et les lignes
+ - Touche 'echap' ou 'q' pour quitter
+'''
+
 import cv2
 import numpy as np
 import os
@@ -49,26 +60,28 @@ def create_mask_and_lines(video_path, out_dir="temp", window_name="Mask and Line
                 cv2.putText(display, label, (cx + 5, cy - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.6, line_color, 2)
 
             
-    # temp line preview (one point placed)
+    # temp line preview (un ou deux points placés)
         if temp_line:
             cv2.circle(display, tuple(temp_line[0]), 4, (255, 0, 0), -1)
+            if len(temp_line) >= 2:
+                cv2.circle(display, tuple(temp_line[1]), 4, (255, 0, 0), -1)
+                # Affiche le trait rouge dès que les deux points sont placés
+                cv2.line(display, tuple(temp_line[0]), tuple(temp_line[1]), (0, 0, 255), 2)
 
+    label_input_mode = False
+    label_text = ""
     def on_mouse(event, x, y, flags, param):
-        nonlocal poly_pts, temp_line, polygon_closed, line_mode, lines
+        nonlocal poly_pts, temp_line, polygon_closed, line_mode, lines, label_input_mode, label_text
         if event == cv2.EVENT_LBUTTONDOWN:
-            if line_mode:
-                # line-creation mode: collect two points
+            if line_mode and not label_input_mode:
                 temp_line.append((x, y))
                 if len(temp_line) == 2:
-                    label = input("Label for this line (direction code, enter empty to skip): ").strip()
-                    lines.append((temp_line[0], temp_line[1], label))
-                    temp_line.clear()
+                    label_input_mode = True
+                    label_text = ""
             else:
-                # polygon mode: add polygon point
                 if not polygon_closed:
                     poly_pts.append((x, y))
         elif event == cv2.EVENT_RBUTTONDOWN:
-            # right click closes polygon if enough points
             if not polygon_closed and len(poly_pts) >= 3:
                 polygon_closed = True
 
@@ -94,9 +107,28 @@ def create_mask_and_lines(video_path, out_dir="temp", window_name="Mask and Line
         draw()
         mode_text = "LINE MODE" if line_mode else "POLY MODE"
         cv2.putText(display, mode_text, (10, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 0), 2)
+        if label_input_mode:
+            # Afficher la zone de saisie du label
+            cv2.rectangle(display, (10, 50), (400, 90), (0, 0, 0), -1)
+            cv2.putText(display, f"Nom de la ligne : {label_text}", (15, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
         cv2.imshow(window_name, display)
-        key = cv2.waitKey(20) & 0xFF
-
+        key = cv2.waitKey(20)
+        if label_input_mode:
+            if key == 13 or key == 10:  # Entrée
+                lines.append((temp_line[0], temp_line[1], label_text.strip()))
+                temp_line.clear()
+                label_input_mode = False
+                label_text = ""
+            elif key == 27:  # Echap pour annuler
+                temp_line.clear()
+                label_input_mode = False
+                label_text = ""
+            elif key == 8:  # Backspace
+                label_text = label_text[:-1]
+            elif key > 0 and key < 256:
+                label_text += chr(key)
+            continue
+        key = key & 0xFF
         if key == ord('q') or key == 27:
             break
         elif key == ord('r'):
@@ -107,13 +139,9 @@ def create_mask_and_lines(video_path, out_dir="temp", window_name="Mask and Line
             line_mode = False
             draw()
         elif key == ord('l'):
-            # toggle line mode
             line_mode = not line_mode
             temp_line = []
-            if line_mode:
-                print("Line mode: click two points to create a line (then input label in console).")
         elif key == ord('z'):
-            # undo
             if line_mode and temp_line:
                 temp_line.pop()
             elif line_mode and not temp_line and lines:
@@ -121,13 +149,10 @@ def create_mask_and_lines(video_path, out_dir="temp", window_name="Mask and Line
             elif not line_mode and not polygon_closed and poly_pts:
                 poly_pts.pop()
             elif not line_mode and polygon_closed:
-                # reopen polygon (undo close) if desired
                 polygon_closed = False
         elif key == ord('s'):
-            # save mask and lines
             mask = np.zeros((h, w), dtype=np.uint8)
             if poly_pts:
-                # fill polygon (interior = water -> 255)
                 cv2.fillPoly(mask, [np.array(poly_pts, np.int32)], 255)
             base = os.path.splitext(os.path.basename(video_path))[0]
             mask_path = os.path.join(out_dir, f"{base}_mask.png")
@@ -141,7 +166,6 @@ def create_mask_and_lines(video_path, out_dir="temp", window_name="Mask and Line
                 json.dump(meta, f, ensure_ascii=False, indent=2)
             print(f"Saved mask -> {mask_path}")
             print(f"Saved lines -> {json_path}")
-
     cv2.destroyAllWindows()
     return
 

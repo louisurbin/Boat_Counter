@@ -36,7 +36,7 @@ def apply_mask_to_video(video_path, mask_path, out_path):
 
     cap.release()
     out.release()
-    print(f"Masked video saved to: {out_path}")
+    print(f"Masked video saved at: {out_path}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Apply mask to all frames of a video.")
