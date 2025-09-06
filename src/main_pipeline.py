@@ -12,6 +12,7 @@ from apply_mask import apply_mask_to_video
 
 ### Exemple d'utilisation : python3 ./src/main_pipeline.py ./data/input_video.mp4 --out output_directory ###
 
+
 # Helper to get mask and lines paths from video and output dir
 def get_mask_and_lines_paths(video_path, out_dir):
     base = os.path.splitext(os.path.basename(video_path))[0]
@@ -51,7 +52,6 @@ def main(video_path, output_dir):
 
     print("Step 5: Visualizing crossings...")
     crossings_dir = os.path.abspath(os.path.join(".", "temp", "extractions"))
-    print(f"Step 5: Visualizing crossings (reading {crossings_dir})...")
     visualize_line_crossings(video_path, lines_path, crossings_dir)
 
     # --- NEW: aggregate all per-id crossings and write summary to output_dir ---
@@ -95,13 +95,13 @@ def main(video_path, output_dir):
         video_base = os.path.splitext(os.path.basename(video_path))[0]
         out_path = os.path.join(output_dir, f"{video_base}_all_crossings.txt")
         with open(out_path, "w", encoding="utf-8") as fo:
-            fo.write("line_label\tup\tdown\ttotal\n")
+            fo.write("line\tup\tdown\ttotal\n")
             for label, rec in sorted(summary.items()):
                 up = rec.get("up", 0)
                 down = rec.get("down", 0)
                 total = up + down
                 fo.write(f"{label}\t{up}\t{down}\t{total}\n")
-            fo.write("\n# Details per id (label: list of signs)\n")
+            fo.write("\n# Details per id\n")
             for label, rec in sorted(summary.items()):
                 fo.write(f"\n[{label}]\n")
                 for oid, signs in sorted(rec.get("per_id", {}).items(), key=lambda x: x[0]):

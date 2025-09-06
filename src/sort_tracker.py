@@ -581,7 +581,6 @@ def main():
 
 		# Crossings detection
 		if lines_info:
-			print(f"[debug] lines loaded: {len(lines_info)}")
 			for oid, bbox in objects.items():
 				cx = (bbox[0] + bbox[2]) / 2.0
 				cy = (bbox[1] + bbox[3]) / 2.0
@@ -626,7 +625,6 @@ def main():
 								# Convention demandée: +1 si le bateau "monte" (y diminue), -1 sinon
 								sign = 1 if cy < prev[1] else -1
 								crossings_per_id.setdefault(oid, []).append((line["label"], sign, frame_idx))
-								print(f"[debug] crossing detected: id={oid}, line={line['label']}, sign={sign}, frame={frame_idx}, inter={'yes' if inter is not None else 'no'}")
 				prev_centroids[oid] = (cx, cy)
 
 		# Draw trajectories and IDs on frame for video
@@ -694,7 +692,6 @@ def main():
 
 	# Save crossings per id in temp/extractions/id/crossings.txt
 	total_crossings = sum(len(v) for v in crossings_per_id.values())
-	print(f"[debug] saving crossings: base_dir={base_temp}, ids_with_crossings={len(crossings_per_id)}, total_crossings={total_crossings}")
 	for oid, crossings in crossings_per_id.items():
 		oid_dir = os.path.join(base_temp, str(oid))
 		os.makedirs(oid_dir, exist_ok=True)
@@ -705,8 +702,6 @@ def main():
 				line_label, sign = item[0], item[1]
 				sens = "+1" if sign > 0 else "-1"
 				f.write(f"{line_label}\t{sens}\n")
-		print(f"[debug] wrote {len(crossings)} crossings to {txt_path}")
-# ...existing code...
 	# print runtime (remove 'valid' count)
 	duration = time.time() - start_time
 	print(f"Total trajectories: {len(tracker.completed)}, runtime: {duration:.2f}s")
