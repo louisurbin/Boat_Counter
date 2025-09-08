@@ -26,6 +26,9 @@ MIN_TRACK_SIDE = 0             # côté min (px) pour un track; 0 -> auto = sqrt
 NEW_IOU_GATE = 0.3             # IoU pour éviter création d'un nouvel ID lorsqu'il recouvre fortement un existant
 MIN_TRACK_LENGTH = 5           # nombre minimal de frames pour valider une trajectoire (filtre anti-bruit)
 
+# Global default FPS (frames per second) 
+fps = 1/5
+
 def nms(boxes, scores=None, iou_thresh=0.1):
 	"""
 	Simple Non-Maximum Suppression for axis-aligned boxes.
@@ -675,16 +678,19 @@ def main():
 					if x2 <= x1 or y2 <= y1:
 						continue
 					crop = frame_c[y1:y2, x1:x2]
-					# ...rétablit la sauvegarde directe du crop couleur...
+					# only save crops for objects that have at least one recorded crossing
+					if oid not in crossings_per_id or not crossings_per_id.get(oid):
+						continue
 					oid_dir = os.path.join(base_temp, str(oid))
 					os.makedirs(oid_dir, exist_ok=True)
 					cnt = save_counts.get(oid, 0)
-					filename = f"{i:06d}.png"
+					filename = f"{i:06d}.jpg"
 					fullpath = os.path.join(oid_dir, filename)
 					if os.path.exists(fullpath):
-						filename = f"{i:06d}_{cnt:03d}.png"
+						filename = f"{i:06d}_{cnt:03d}.jpg"
 						fullpath = os.path.join(oid_dir, filename)
-					cv2.imwrite(fullpath, crop)
+					# save as JPEG with quality=95
+					cv2.imwrite(fullpath, crop, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
 					save_counts[oid] = cnt + 1
 			i += 1
 		color_cap.release()
@@ -699,9 +705,17 @@ def main():
 		with open(txt_path, "w", encoding="utf-8") as f:
 			for item in crossings:
 				# item can be (line_label, sign, frame_idx)
-				line_label, sign = item[0], item[1]
+				line_label, sign, frame_idx_item = item[0], item[1], item[2]
 				sens = "+1" if sign > 0 else "-1"
-				f.write(f"{line_label}\t{sens}\n")
+				# compute seconds using global fps (seconds = frame_idx / fps)
+				try:
+					fps_global = float(globals().get('fps', 1/5))
+					seconds = float(frame_idx_item) / fps_global
+				except Exception:
+					seconds = 0.0
+				# write: line_label <tab> sens <tab> frame_idx <tab> seconds (rounded to nearest second)
+				sec_int = int(round(seconds))
+				f.write(f"{line_label}\t{sens}\t{frame_idx_item}\t{sec_int}\n")
 	# print runtime (remove 'valid' count)
 	duration = time.time() - start_time
 	print(f"Total trajectories: {len(tracker.completed)}, runtime: {duration:.2f}s")

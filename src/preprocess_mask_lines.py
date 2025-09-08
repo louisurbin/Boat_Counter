@@ -1,4 +1,3 @@
-
 '''
 Instructions principales :
  - Tracer le polygone (zone d'eau) avec des clics gauches
@@ -70,6 +69,8 @@ def create_mask_and_lines(video_path, out_dir="temp", window_name="Mask and Line
 
     label_input_mode = False
     label_text = ""
+    date_input_mode = False
+    date_text = ""
     def on_mouse(event, x, y, flags, param):
         nonlocal poly_pts, temp_line, polygon_closed, line_mode, lines, label_input_mode, label_text
         if event == cv2.EVENT_LBUTTONDOWN:
@@ -98,6 +99,7 @@ def create_mask_and_lines(video_path, out_dir="temp", window_name="Mask and Line
     print(" - l : enter line mode (next two left clicks create a line).")
     print(" - z : undo last polygon point or last line.")
     print(" - r : reset everything.")
+    print(" - d : enter date input mode (MM/DD HH:MM:SS) to set video start time.")
     print(" - s : save mask and lines to temp/.")
     print(" - q or ESC : quit without saving.")
 
@@ -105,14 +107,55 @@ def create_mask_and_lines(video_path, out_dir="temp", window_name="Mask and Line
 
     while True:
         draw()
-        mode_text = "LINE MODE" if line_mode else "POLY MODE"
+        # show DATE MODE when editing date, otherwise show LINE/POLY
+        if date_input_mode:
+            mode_text = "DATE MODE"
+        else:
+            mode_text = "LINE MODE" if line_mode else "POLY MODE"
         cv2.putText(display, mode_text, (10, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 0), 2)
         if label_input_mode:
-            # Afficher la zone de saisie du label
-            cv2.rectangle(display, (10, 50), (400, 90), (0, 0, 0), -1)
+            # Afficher la zone de saisie du label (width adapts to frame)
+            overlay = display.copy()
+            x2 = min(w - 10, 700)
+            cv2.rectangle(overlay, (10, 50), (x2, 90), (0, 0, 0), -1)
+            cv2.addWeighted(overlay, 0.5, display, 0.5, 0, display)
             cv2.putText(display, f"Nom de la ligne : {label_text}", (15, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
+        if date_input_mode:
+            # Afficher la zone de saisie semi-transparente comme pour le label, mais pour la date
+            overlay = display.copy()
+            # narrow box to fit 'MM/DD HH:MM:SS'
+            x2 = min(w - 10, 260)
+            cv2.rectangle(overlay, (10, 50), (x2, 90), (0, 0, 0), -1)
+            cv2.addWeighted(overlay, 0.5, display, 0.5, 0, display)
+            # show fixed format hint and current typed text, place date_text after prefix
+            prefix = "MM/DD HH:MM:SS :"
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            scale = 0.7
+            thickness = 2
+            cv2.putText(display, prefix, (15, 80), font, scale, (0, 255, 255), thickness)
+            if date_text:
+                (pw, ph), _ = cv2.getTextSize(prefix, font, scale, thickness)
+                x_date = 15 + pw + 8
+                # ensure date_text fits inside box; if not, clip
+                cv2.putText(display, date_text, (x_date, 80), font, scale, (0, 255, 255), thickness)
         cv2.imshow(window_name, display)
         key = cv2.waitKey(20)
+        # Date input handling: accept digits and separators, Enter leaves date mode active
+        if date_input_mode:
+            if key == 27:  # Esc: cancel
+                date_input_mode = False
+                date_text = ""
+            elif key == 8:  # Backspace
+                date_text = date_text[:-1]
+            elif key > 0 and key < 256:
+                ch = chr(key)
+                if ch.isdigit() or ch in ['/', ':', ' ', '-']:
+                    date_text += ch
+            # keep date mode active after Enter so user can confirm multiple times
+            # ensure line mode disabled while editing date
+            line_mode = False
+            continue
+
         if label_input_mode:
             if key == 13 or key == 10:  # Entrée
                 lines.append((temp_line[0], temp_line[1], label_text.strip()))
@@ -126,9 +169,20 @@ def create_mask_and_lines(video_path, out_dir="temp", window_name="Mask and Line
             elif key == 8:  # Backspace
                 label_text = label_text[:-1]
             elif key > 0 and key < 256:
-                label_text += chr(key)
+                if 32 <= key <= 126:
+                    label_text += chr(key)
             continue
+
         key = key & 0xFF
+        # toggle date input mode with 'd'
+        if key == ord('d'):
+            date_input_mode = not date_input_mode
+            if date_input_mode:
+                date_text = ""
+                # disable line mode when entering date mode
+                line_mode = False
+            continue
+
         if key == ord('q') or key == 27:
             break
         elif key == ord('r'):
@@ -162,10 +216,14 @@ def create_mask_and_lines(video_path, out_dir="temp", window_name="Mask and Line
             for idx, (p1, p2, label) in enumerate(lines):
                 out_lines.append({"id": idx, "p1": list(p1), "p2": list(p2), "label": label})
             meta = {"video": os.path.basename(video_path), "image_size": [w, h], "lines": out_lines}
+            # include start_time if provided via GUI 'd' input
+            if date_text:
+                meta['start_time'] = date_text
             with open(json_path, "w", encoding="utf-8") as f:
                 json.dump(meta, f, ensure_ascii=False, indent=2)
             print(f"Saved mask -> {mask_path}")
             print(f"Saved lines -> {json_path}")
+            # start_time handled via 'd' GUI input (date_text)
     cv2.destroyAllWindows()
     return
 
