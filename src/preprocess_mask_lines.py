@@ -71,6 +71,7 @@ def create_mask_and_lines(video_path, out_dir="temp", window_name="Mask and Line
     label_text = ""
     date_input_mode = False
     date_text = ""
+    date_mode_active = False
     def on_mouse(event, x, y, flags, param):
         nonlocal poly_pts, temp_line, polygon_closed, line_mode, lines, label_input_mode, label_text
         if event == cv2.EVENT_LBUTTONDOWN:
@@ -107,24 +108,24 @@ def create_mask_and_lines(video_path, out_dir="temp", window_name="Mask and Line
 
     while True:
         draw()
-        # show DATE MODE when editing date, otherwise show LINE/POLY
-        if date_input_mode:
-            mode_text = "DATE MODE"
-        else:
-            mode_text = "LINE MODE" if line_mode else "POLY MODE"
+        # show mode (DATE MODE if date_mode_active) at top-left
+        mode_text = "DATE MODE" if date_mode_active else ("LINE MODE" if line_mode else "POLY MODE")
         cv2.putText(display, mode_text, (10, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 0), 2)
+
         if label_input_mode:
-            # Afficher la zone de saisie du label (width adapts to frame)
+            # Afficher la zone de saisie du label (1/3 de la largeur de l'image)
             overlay = display.copy()
-            x2 = min(w - 10, 700)
+            box_w = max(50, int(w / 3))
+            x2 = min(10 + box_w, w - 10)
             cv2.rectangle(overlay, (10, 50), (x2, 90), (0, 0, 0), -1)
             cv2.addWeighted(overlay, 0.5, display, 0.5, 0, display)
             cv2.putText(display, f"Nom de la ligne : {label_text}", (15, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
         if date_input_mode:
             # Afficher la zone de saisie semi-transparente comme pour le label, mais pour la date
             overlay = display.copy()
-            # narrow box to fit 'MM/DD HH:MM:SS'
-            x2 = min(w - 10, 260)
+            # box width = 1/3 of frame width (same as label box)
+            box_w = max(50, int(w / 3))
+            x2 = min(10 + box_w, w - 10)
             cv2.rectangle(overlay, (10, 50), (x2, 90), (0, 0, 0), -1)
             cv2.addWeighted(overlay, 0.5, display, 0.5, 0, display)
             # show fixed format hint and current typed text, place date_text after prefix
@@ -136,66 +137,79 @@ def create_mask_and_lines(video_path, out_dir="temp", window_name="Mask and Line
             if date_text:
                 (pw, ph), _ = cv2.getTextSize(prefix, font, scale, thickness)
                 x_date = 15 + pw + 8
-                # ensure date_text fits inside box; if not, clip
                 cv2.putText(display, date_text, (x_date, 80), font, scale, (0, 255, 255), thickness)
         cv2.imshow(window_name, display)
         key = cv2.waitKey(20)
-        # Date input handling: accept digits and separators, Enter leaves date mode active
+        # normalize key
+        if key == -1:
+            k = None
+        else:
+            k = key & 0xFF
+
+        # date input handling (use k)
         if date_input_mode:
-            if key == 27:  # Esc: cancel
-                date_input_mode = False
-                date_text = ""
-            elif key == 8:  # Backspace
-                date_text = date_text[:-1]
-            elif key > 0 and key < 256:
-                ch = chr(key)
-                if ch.isdigit() or ch in ['/', ':', ' ', '-']:
-                    date_text += ch
-            # keep date mode active after Enter so user can confirm multiple times
+            if k is not None:
+                if k == 27:  # Esc: cancel
+                    date_input_mode = False
+                    date_text = ""
+                elif k == 13 or k == 10:  # Enter: accept and close date box but keep DATE MODE active
+                    date_input_mode = False
+                    date_text = date_text.strip()
+                    date_mode_active = True
+                elif k == 8:  # Backspace
+                    date_text = date_text[:-1]
+                else:
+                    # accept digits and a few separators
+                    if 32 <= k <= 126:
+                        ch = chr(k)
+                        if ch.isdigit() or ch in ['/', ':', ' ', '-']:
+                            date_text += ch
             # ensure line mode disabled while editing date
             line_mode = False
             continue
 
+        # label input handling (use k)
         if label_input_mode:
-            if key == 13 or key == 10:  # Entrée
-                lines.append((temp_line[0], temp_line[1], label_text.strip()))
-                temp_line.clear()
-                label_input_mode = False
-                label_text = ""
-            elif key == 27:  # Echap pour annuler
-                temp_line.clear()
-                label_input_mode = False
-                label_text = ""
-            elif key == 8:  # Backspace
-                label_text = label_text[:-1]
-            elif key > 0 and key < 256:
-                if 32 <= key <= 126:
-                    label_text += chr(key)
+            if k is not None:
+                if k == 13 or k == 10:  # Enter
+                    lines.append((temp_line[0], temp_line[1], label_text.strip()))
+                    temp_line.clear()
+                    label_input_mode = False
+                    label_text = ""
+                elif k == 27:  # Esc cancel
+                    temp_line.clear()
+                    label_input_mode = False
+                    label_text = ""
+                elif k == 8:  # Backspace
+                    label_text = label_text[:-1]
+                elif 32 <= k <= 126:
+                    label_text += chr(k)
             continue
 
-        key = key & 0xFF
-        # toggle date input mode with 'd'
-        if key == ord('d'):
-            date_input_mode = not date_input_mode
-            if date_input_mode:
+        # general keys (use k)
+        if k is None:
+            continue
+        if k == ord('d'):
+            # toggle persistent date mode; opening it also enables the input box
+            date_mode_active = not date_mode_active
+            date_input_mode = date_mode_active
+            if date_mode_active:
                 date_text = ""
-                # disable line mode when entering date mode
                 line_mode = False
             continue
-
-        if key == ord('q') or key == 27:
+        elif k == ord('q') or k == 27:
             break
-        elif key == ord('r'):
+        elif k == ord('r'):
             poly_pts = []
             lines = []
             temp_line = []
             polygon_closed = False
             line_mode = False
             draw()
-        elif key == ord('l'):
+        elif k == ord('l'):
             line_mode = not line_mode
             temp_line = []
-        elif key == ord('z'):
+        elif k == ord('z'):
             if line_mode and temp_line:
                 temp_line.pop()
             elif line_mode and not temp_line and lines:
@@ -204,7 +218,7 @@ def create_mask_and_lines(video_path, out_dir="temp", window_name="Mask and Line
                 poly_pts.pop()
             elif not line_mode and polygon_closed:
                 polygon_closed = False
-        elif key == ord('s'):
+        elif k == ord('s'):
             mask = np.zeros((h, w), dtype=np.uint8)
             if poly_pts:
                 cv2.fillPoly(mask, [np.array(poly_pts, np.int32)], 255)
