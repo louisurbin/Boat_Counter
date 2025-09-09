@@ -102,7 +102,7 @@ def create_mask_and_lines(video_path, out_dir="temp", window_name="Mask and Line
     print(" - r : reset everything.")
     print(" - d : enter date input mode (MM/DD HH:MM:SS) to set video start time.")
     print(" - s : save mask and lines to temp/.")
-    print(" - q or ESC : quit without saving.")
+    print(" - ESC : quit without saving.")
 
     line_mode = False
 
@@ -197,7 +197,7 @@ def create_mask_and_lines(video_path, out_dir="temp", window_name="Mask and Line
                 date_text = ""
                 line_mode = False
             continue
-        elif k == ord('q') or k == 27:
+        elif k == 27:
             break
         elif k == ord('r'):
             poly_pts = []

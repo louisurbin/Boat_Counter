@@ -13,20 +13,21 @@ import sys
 
 # PARAMÈTRES
 # Units: pixels / pixels^2 (area)
-MIN_AREA = 500                 # aire minimale (px^2) d'un contour pour qu'il soit considéré en détection
-THRESH_VAL = 100               # seuil binaire utilisé pour la détection (0-255)
+MIN_AREA = 500                # aire minimale (px^2) d'un contour pour qu'il soit considéré en détection 
+THRESH_VAL = 100               # seuil binaire utilisé pour la détection (0-255) (inutile)
 NMS_IOU = 0.3                  # IoU seuil pour la NMS (fusion de boîtes)
 MAX_DISAPPEARED = 1            # frames avant suppression d'un objet absent
 MAX_DISTANCE = 200             # distance max (px) pour associer une détection à un objet suivi; <=0 désactive la contrainte (autorise grands sauts)
 WATERSHED = True               # activer la séparation des amas via watershed (True/False)
 LARGE_AREA_FACTOR = 1.0        # facteur multiplié par MIN_AREA pour considérer un contour "grand" (pour watershed)
 WATERSHED_BOTTOM_MARGIN = 20   # éviter d'appliquer watershed si le blob touche le bas (px)
-MIN_TRACK_AREA = 1000          # aire minimale (px^2) requise pour qu'une détection devienne un track
+MIN_TRACK_AREA = 500          # aire minimale (px^2) requise pour qu'une détection devienne un track
 MIN_TRACK_SIDE = 0             # côté min (px) pour un track; 0 -> auto = sqrt(MIN_TRACK_AREA)
 NEW_IOU_GATE = 0.3             # IoU pour éviter création d'un nouvel ID lorsqu'il recouvre fortement un existant
 MIN_TRACK_LENGTH = 5           # nombre minimal de frames pour valider une trajectoire (filtre anti-bruit)
+MAX_BOX_SIDE = None             # taille max (px) d'une boîte détectée. Si une boîte est plus grande, elle sera réduite à cette taille (None pour désactiver).
 
-# Global default FPS (frames per second) 
+# Nombre d'images par seconde prises par la caméra
 fps = 1/5
 
 def nms(boxes, scores=None, iou_thresh=0.1):
@@ -208,6 +209,29 @@ def detect_rectangles(frame, min_area=100, thresh_val=100, iou_thresh=0.3,
 		if not keep:
 			continue
 		box = (int(x), int(y), int(x + w), int(y + h))
+		# If max box side configured, shrink large boxes and center on centroid
+		if MAX_BOX_SIDE is not None:
+			box_w = box[2] - box[0]
+			box_h = box[3] - box[1]
+			if box_w > MAX_BOX_SIDE or box_h > MAX_BOX_SIDE:
+				cx = int(box[0] + box_w / 2)
+				cy = int(box[1] + box_h / 2)
+				new_w = min(box_w, MAX_BOX_SIDE)
+				new_h = min(box_h, MAX_BOX_SIDE)
+				x1_new = max(0, cx - new_w // 2)
+				y1_new = max(0, cy - new_h // 2)
+				x2_new = int(x1_new + new_w)
+				y2_new = int(y1_new + new_h)
+				# ensure within image
+				frame_w = frame.shape[1]
+				frame_h = frame.shape[0]
+				if x2_new > frame_w:
+					x2_new = frame_w
+					x1_new = max(0, x2_new - int(new_w))
+				if y2_new > frame_h:
+					y2_new = frame_h
+					y1_new = max(0, y2_new - int(new_h))
+				box = (int(x1_new), int(y1_new), int(x2_new), int(y2_new))
 		candidates.append(box)
 		scores.append(area)  # larger contours preferred
 

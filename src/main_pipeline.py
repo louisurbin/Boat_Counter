@@ -6,7 +6,8 @@ from preprocess_mask_lines import create_mask_and_lines
 from apply_mask import apply_mask_to_video
 
 
-### IMPORTANT : -> Les paramètres MOG2 sont modifiables dans 'mog2_background_subtraction.py' (voir variables 'history', 'varThreshold', 'min_area) ###
+### IMPORTANT : -> Les paramètres MOG2 sont modifiables dans 'mog2_background_subtraction.py' -> VAR_THRESHOLD est le plus important ###
+###             -> Les paramètres de suivi sont modifiables dans 'sort_tracker.py' -> MIN_TRACK_AREA et MAX_DISTANCE sont importants ###
 ###             -> Supprimer ./temp/extractions/ avant de relancer le pipeline (sinon pb pour compter) ###
 ###             -> Dans les fichiers de crossings.txt, +1 signifie que le bateau "monte", -1 signifie qu'il "descend" ###
 ###             -> Lors du tracé des lignes, toujours tracer la ligne dans le sens "bas-gauche" vers "haut-droit" (pour cohérence des normales) ###

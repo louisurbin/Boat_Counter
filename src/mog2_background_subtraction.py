@@ -5,23 +5,27 @@ import cv2
 import math
 import numpy as np
 
-### history=1500, varThreshold=35.0 are the important parameters for MOG2 ###
-### cv2.threshold is used to binarize the mask before connectedComponents ###
-### min_area=50 is used to filter small components in analyze_clusters ###
-### example usage: python mog2_background_subtraction.py -i input.mp4 -o output.mp4 -d --no-shadows --no-morph ###
+# Example usage: python mog2_background_subtraction.py -i input.mp4 -o output.mp4 -d --no-shadows --no-morph ###
+
+# PARAMÈTRES
+BINARIZE_THRESHOLD = 100  # seuil binaire pour le masque MOG2
+VAR_THRESHOLD = 50      # paramètre de variance
+HISTORY = 1500           # nombre de frames retenues par MOG2 pour estimer le fond.
+MIN_AREA = 500             # aire minimale pour considérer un cluster comme valide
 
 def parse_args():
     p = argparse.ArgumentParser(description="Apply MOG2 background subtraction to a video.")
     p.add_argument("--input", "-i", type=str, required=True, help="Input video path.")
     p.add_argument("--output", "-o", type=str, required=True, help="Output video path for the mask.")
     p.add_argument("--display", "-d", action="store_true", help="Display frames while processing.")
-    p.add_argument("--history", type=int, default=1500, help="MOG2 history.")
-    p.add_argument("--var-threshold", dest="var_threshold", type=float, default=35.0, help="MOG2 varThreshold.")
+    p.add_argument("--history", type=int, default=HISTORY, help=f"MOG2 history. default={HISTORY}")
+    p.add_argument("--var-threshold", dest="var_threshold", type=float, default=VAR_THRESHOLD, help=f"MOG2 varThreshold. default={VAR_THRESHOLD}")
+    p.add_argument("--binarize-threshold", dest="binarize_threshold", type=int, default=BINARIZE_THRESHOLD, help=f"Threshold (0-255) to binarize MOG2 mask. default={BINARIZE_THRESHOLD}")
     p.add_argument("--no-shadows", action="store_true", help="Disable shadow detection in MOG2.")
     p.add_argument("--no-morph", action="store_true", help="Disable morphological cleanup of the mask.")
     return p.parse_args()
 
-def analyze_clusters(mask, min_area=50):
+def analyze_clusters(mask, min_area=MIN_AREA):
     num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(mask, connectivity=8)
     result_mask = np.zeros_like(mask)
     for label in range(1, num_labels):
@@ -95,9 +99,9 @@ def main():
             fgmask = cv2.morphologyEx(fgmask, cv2.MORPH_CLOSE, kernel, iterations=1)
 
         # Binarisation pour garantir un masque binaire (important pour connectedComponents)
-        _, fgmask_bin = cv2.threshold(fgmask, 100, 255, cv2.THRESH_BINARY)
+        _, fgmask_bin = cv2.threshold(fgmask, int(args.binarize_threshold), 255, cv2.THRESH_BINARY)
 
-        rect_mask, stats, centroids, num_labels = analyze_clusters(fgmask_bin, min_area=50)
+        rect_mask, stats, centroids, num_labels = analyze_clusters(fgmask_bin, min_area=MIN_AREA)
 
         mask_bgr = cv2.cvtColor(rect_mask, cv2.COLOR_GRAY2BGR)
         writer.write(mask_bgr)
