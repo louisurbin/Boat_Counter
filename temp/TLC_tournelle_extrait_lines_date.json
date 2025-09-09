@@ -1,0 +1,21 @@
+{
+  "video": "TLC_tournelle_extrait.m4v",
+  "image_size": [
+    1280,
+    720
+  ],
+  "lines": [
+    {
+      "id": 0,
+      "p1": [
+        679,
+        417
+      ],
+      "p2": [
+        850,
+        296
+      ],
+      "label": "in"
+    }
+  ]
+}

@@ -8,7 +8,9 @@ from apply_mask import apply_mask_to_video
 
 ### IMPORTANT : -> Les paramètres MOG2 sont modifiables dans 'mog2_background_subtraction.py' (voir variables 'history', 'varThreshold', 'min_area) ###
 ###             -> Supprimer ./temp/extractions/ avant de relancer le pipeline (sinon pb pour compter) ###
-###             -> Dans les fichiers de crossings.txt, +1 signifie que le bateau "monte" (y diminue), -1 signifie qu'il "descend" (y augmente) ###
+###             -> Dans les fichiers de crossings.txt, +1 signifie que le bateau "monte", -1 signifie qu'il "descend" ###
+###             -> Lors du tracé des lignes, toujours tracer la ligne dans le sens "bas-gauche" vers "haut-droit" (pour cohérence des normales) ###
+###             -> Si la video n'est pas en 1 image toutes les 5 secondes, modifier 'fps' au début de 'sort_tracker.py' ###
 
 ### Exemple d'utilisation : python3 ./src/main_pipeline.py ./data/input_video.mp4 --out output_directory ###
 
@@ -17,7 +19,7 @@ from apply_mask import apply_mask_to_video
 def get_mask_and_lines_paths(video_path, out_dir):
     base = os.path.splitext(os.path.basename(video_path))[0]
     mask_path = os.path.join(out_dir, f"{base}_mask.png")
-    lines_path = os.path.join(out_dir, f"{base}_lines.json")
+    lines_path = os.path.join(out_dir, f"{base}_lines_date.json")
     return mask_path, lines_path
 
 def main(video_path, output_dir):
@@ -50,6 +52,7 @@ def main(video_path, output_dir):
                "--color", os.path.abspath(video_path)]
     subprocess.run(cmd_sort, check=True)
 
+    # Generate per-id crossings with datetime and aggregated all_crossings in ./temp
     print("Step 5: Visualizing crossings...")
     crossings_dir = os.path.abspath(os.path.join(".", "temp", "extractions"))
     visualize_line_crossings(video_path, lines_path, crossings_dir)
@@ -77,10 +80,10 @@ def main(video_path, output_dir):
                         except Exception:
                             sign = 1 if sign_str.startswith("+") else (-1 if sign_str.startswith("-") else 0)
                         rec = summary.setdefault(label, {"up": 0, "down": 0, "per_id": {}})
-                        # Contrainte actuelle : +1 -> "down" (bleu), -1 -> "up" (vert)
-                        if sign > 0:
+                        # Contrainte actuelle : +1 -> "up" (vert), +1 -> "down" (bleu)
+                        if sign < 0:
                             rec["down"] += 1
-                        elif sign < 0:
+                        elif sign > 0:
                             rec["up"] += 1
                         # store per-id detail
                         oid_key = str(entry)
@@ -104,12 +107,28 @@ def main(video_path, output_dir):
             fo.write("\n# Details per id\n")
             for label, rec in sorted(summary.items()):
                 fo.write(f"\n[{label}]\n")
-                for oid, signs in sorted(rec.get("per_id", {}).items(), key=lambda x: x[0]):
-                    fo.write(f"{oid}\t{','.join(str(s) for s in signs)}\n")
+                per_items = rec.get("per_id", {})
+                def sort_key_item(kv):
+                    k = kv[0]
+                    try:
+                        return (0, int(k))
+                    except Exception:
+                        return (1, k)
+                for oid, signs in sorted(per_items.items(), key=sort_key_item):
+                    fo.write(f"{oid}\t{', '.join(str(s) for s in signs)}\n")
         # summary written (no debug printing)
     except Exception as e:
         print(f"Warning: could not write summary file: {e}")
     # --- end new block ---
+
+    # After summary file created, update per-id crossings and existing all_crossings files in temp
+    try:
+        cmd_dates = [sys.executable, os.path.join(os.path.dirname(__file__), "add_dates_to_crossings.py"),
+                     "--extractions", os.path.join(".", "temp", "extractions"),
+                     "--temp", os.path.join(".", "temp")]
+        subprocess.run(cmd_dates, check=True)
+    except Exception as e:
+        print(f"Warning: add_dates_to_crossings failed: {e}")
 
     # Clean up non-essential temp files
     try:
@@ -181,10 +200,10 @@ def visualize_line_crossings(video_path, lines_json_path, crossings_dir):
                                 sign = 1 if sign_str.startswith("+") else (-1 if sign_str.startswith("-") else 0)
                             if label not in line_counts:
                                 line_counts.setdefault(label, {"up": 0, "down": 0})
-                            # Convention : +1 incrémente la flèche bleue ("down"), -1 incrémente la flèche verte ("up")
-                            if sign > 0:
+                            # Convention : +1 incrémente la flèche verte ("up"), -1 incrémente la flèche bleue ("down")
+                            if sign < 0:
                                 line_counts[label]["down"] += 1
-                            elif sign < 0:
+                            elif sign > 0:
                                 line_counts[label]["up"] += 1
                 except Exception as e:
                     print(f"Warning reading {txt_path}: {e}")
@@ -206,40 +225,40 @@ def visualize_line_crossings(video_path, lines_json_path, crossings_dir):
         # Offset to separate arrows (relative)
         h, w = frame.shape[:2]
         offset = max(20, int(min(w, h) * 0.05))
-        # Arrow up (bottom-top) shifted +offset (green = "up")
-        up_center = (int(mid[0] - normal[1]*offset), int(mid[1] + normal[0]*offset))
-        arrow_start = (int(up_center[0] - normal[0]*30), int(up_center[1] - normal[1]*30))
-        arrow_end = (int(up_center[0] + normal[0]*30), int(up_center[1] + normal[1]*30))
-        cv2.arrowedLine(frame, arrow_start, arrow_end, (0,255,0), 2, tipLength=0.3)
-        # Place the 'up' count under the green arrow
+        # Arrow down (bottom-top) shifted + offset (blue = "down")
+        down_center = (int(mid[0] - normal[1]*offset), int(mid[1] + normal[0]*offset))
+        arrow_start = (int(down_center[0] - normal[0]*30), int(down_center[1] - normal[1]*30))
+        arrow_end = (int(down_center[0] + normal[0]*30), int(down_center[1] + normal[1]*30))
+        cv2.arrowedLine(frame, arrow_start, arrow_end, (255,0,0), 2, tipLength=0.3)
+        # Place the 'down' count under the blue arrow
         font = cv2.FONT_HERSHEY_SIMPLEX
         font_scale = 0.8
         thickness = 2
         margin = 6
-        up_text = f"{line_counts.get(label, {}).get('up', 0)}"
-        (tw, th), baseline = cv2.getTextSize(up_text, font, font_scale, thickness)
-        up_mid_x = (arrow_start[0] + arrow_end[0]) // 2
-        up_bottom_y = max(arrow_start[1], arrow_end[1])
-        up_text_x = int(up_mid_x - tw / 2)
-        up_text_y = int(up_bottom_y + margin + th)
-        up_text_x = max(0, min(w - tw, up_text_x))
-        up_text_y = max(th, min(h, up_text_y))
-        cv2.putText(frame, up_text, (up_text_x, up_text_y), font, font_scale, (0,255,0), thickness)
-        # Arrow down (top-bottom) shifted -offset (blue = "down")
-        down_center = (int(mid[0] + normal[1]*offset), int(mid[1] - normal[0]*offset))
-        arrow_start2 = (int(down_center[0] + normal[0]*30), int(down_center[1] + normal[1]*30))
-        arrow_end2 = (int(down_center[0] - normal[0]*30), int(down_center[1] - normal[1]*30))
-        cv2.arrowedLine(frame, arrow_start2, arrow_end2, (255,0,0), 2, tipLength=0.3)
-        # Place the 'down' count under the blue arrow
         down_text = f"{line_counts.get(label, {}).get('down', 0)}"
-        (dw, dh), dbaseline = cv2.getTextSize(down_text, font, font_scale, thickness)
-        down_mid_x = (arrow_start2[0] + arrow_end2[0]) // 2
-        down_bottom_y = max(arrow_start2[1], arrow_end2[1])
-        down_text_x = int(down_mid_x - dw / 2)
-        down_text_y = int(down_bottom_y + margin + dh)
-        down_text_x = max(0, min(w - dw, down_text_x))
-        down_text_y = max(dh, min(h, down_text_y))
+        (tw, th), baseline = cv2.getTextSize(down_text, font, font_scale, thickness)
+        down_mid_x = (arrow_start[0] + arrow_end[0]) // 2
+        down_bottom_y = max(arrow_start[1], arrow_end[1])
+        down_text_x = int(down_mid_x - tw / 2)
+        down_text_y = int(down_bottom_y + margin + th)
+        down_text_x = max(0, min(w - tw, down_text_x))
+        down_text_y = max(th, min(h, down_text_y))
         cv2.putText(frame, down_text, (down_text_x, down_text_y), font, font_scale, (255,0,0), thickness)
+        # Arrow up (top-bottom) shifted - offset (green = "up")
+        up_center2 = (int(mid[0] + normal[1]*offset), int(mid[1] - normal[0]*offset))
+        arrow_start2 = (int(up_center2[0] + normal[0]*30), int(up_center2[1] + normal[1]*30))
+        arrow_end2 = (int(up_center2[0] - normal[0]*30), int(up_center2[1] - normal[1]*30))
+        cv2.arrowedLine(frame, arrow_start2, arrow_end2, (0,255,0), 2, tipLength=0.3)
+        # Place the 'up' count under the green arrow
+        up_text2 = f"{line_counts.get(label, {}).get('up', 0)}"
+        (uw2, uh2), ubaseline2 = cv2.getTextSize(up_text2, font, font_scale, thickness)
+        up_mid_x2 = (arrow_start2[0] + arrow_end2[0]) // 2
+        up_bottom_y2 = max(arrow_start2[1], arrow_end2[1])
+        up_text_x2 = int(up_mid_x2 - uw2 / 2)
+        up_text_y2 = int(up_bottom_y2 + margin + uh2)
+        up_text_x2 = max(0, min(w - uw2, up_text_x2))
+        up_text_y2 = max(uh2, min(h, up_text_y2))
+        cv2.putText(frame, up_text2, (up_text_x2, up_text_y2), font, font_scale, (0,255,0), thickness)
     cv2.imshow("Crossings Visualization", frame)
     cv2.waitKey(0)
     cv2.destroyAllWindows()

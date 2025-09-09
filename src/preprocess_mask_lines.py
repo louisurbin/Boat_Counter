@@ -224,7 +224,7 @@ def create_mask_and_lines(video_path, out_dir="temp", window_name="Mask and Line
                 cv2.fillPoly(mask, [np.array(poly_pts, np.int32)], 255)
             base = os.path.splitext(os.path.basename(video_path))[0]
             mask_path = os.path.join(out_dir, f"{base}_mask.png")
-            json_path = os.path.join(out_dir, f"{base}_lines.json")
+            json_path = os.path.join(out_dir, f"{base}_lines_date.json")
             cv2.imwrite(mask_path, mask)
             out_lines = []
             for idx, (p1, p2, label) in enumerate(lines):
