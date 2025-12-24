@@ -11,7 +11,7 @@ DEFAULT_BATCH_SIZE = 32
 DEFAULT_EPOCHS = 10
 DEFAULT_LR = 1e-3
 DEFAULT_WEIGHT_DECAY = 0.0
-DEFAULT_OPTIMIZER = "adam"       # "adam" ou "sgd"
+DEFAULT_OPTIMIZER = "adam"       
 DEFAULT_DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 DEFAULT_RESIZE = 128             # taille d'entrée (128x128)
 DEFAULT_NUM_CLASSES = 7
@@ -75,7 +75,8 @@ def train_one_epoch(model, device, loader, criterion, optimizer):
 		optimizer.zero_grad()
 		out = model(imgs)
 		loss = criterion(out, targets)
-		loss.backward(); optimizer.step()
+		loss.backward()
+		optimizer.step()
 		running_loss += loss.item() * imgs.size(0)
 		_, preds = out.max(1)
 		correct += (preds == targets).sum().item()
