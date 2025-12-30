@@ -21,4 +21,4 @@ def extraire_segment_video(input_path, output_path, t1, t2):
     cap.release()
     out.release()
 
-extraire_segment_video('./data/TLC00000.AVI', './data/train/3.m4v', 16.5*60, 28.5*60)
+extraire_segment_video('./temp/video3.mp4', './temp/train3_0.m4v', 0*60, 10.5*60)

@@ -4,6 +4,7 @@ import sys
 import subprocess
 from preprocess_mask_lines import create_mask_and_lines
 from apply_mask import apply_mask_to_video
+from ResNet import get_boat_type_name
 
 
 ### IMPORTANT : -> Les paramètres MOG2 sont modifiables dans 'mog2_background_subtraction.py' -> VAR_THRESHOLD est le plus important ###
@@ -58,6 +59,15 @@ def main(video_path, output_dir):
     crossings_dir = os.path.abspath(os.path.join(".", "temp", "extractions"))
     visualize_line_crossings(video_path, lines_path, crossings_dir)
 
+     # --- Call id_to_boat.py to add boat type to crossings.txt ---
+    print("Step 6: Adding boat type to crossings...")
+    try:
+        cmd_boat = [sys.executable, os.path.join(os.path.dirname(__file__), "id_to_boat.py")]
+        subprocess.run(cmd_boat, check=True)
+    except Exception as e:
+        print(f"Warning: id_to_boat.py failed: {e}")
+    # --- end block ---
+
     # --- NEW: aggregate all per-id crossings and write summary to output_dir ---
     summary = {}  # label -> {'up':int,'down':int,'per_id':{id:[signs]}}
     if os.path.exists(crossings_dir):
@@ -92,6 +102,124 @@ def main(video_path, output_dir):
             except Exception as e:
                 print(f"Warning reading {txt_path}: {e}")
 
+    # write all_crossings.txt in output_dir
+    try:
+        os.makedirs(output_dir, exist_ok=True)
+        # include source video base name in summary filename
+        video_base = os.path.splitext(os.path.basename(video_path))[0]
+        out_path = os.path.join(output_dir, f"{video_base}_all_crossings.txt")
+
+        # number of boat classes
+        num_classes = 6
+
+        with open(out_path, "w", encoding="utf-8") as fo:
+            # global summary (all boat types combined)
+            fo.write("=== Global Summary (All Boat Types) ===\n")
+            fo.write("line\tup\tdown\ttotal\n")
+            for label, rec in sorted(summary.items()):
+                up = rec.get("up", 0)
+                down = rec.get("down", 0)
+                total = up + down
+                fo.write(f"{label}\t{up}\t{down}\t{total}\n")
+
+            # per-class summaries
+            for class_id in range(num_classes):
+                class_id_name = get_boat_type_name(class_id)
+                fo.write(f"\n=== Class {class_id_name} Summary ===\n")
+                fo.write("line\tup\tdown\ttotal\n")
+
+                # class-specific summary
+                class_summary = {}
+                for entry in os.listdir(crossings_dir):
+                    txt_path = os.path.join(crossings_dir, entry, "crossings.txt")
+                    if not os.path.isfile(txt_path):
+                        continue
+
+                    try:
+                        with open(txt_path, "r", encoding="utf-8") as cf:
+                            # Read all lines to get the boat class
+                            lines = cf.readlines()
+                            if not lines:
+                                continue
+
+                            # Get the boat class (last line)
+                            last_line = lines[-1].strip()
+                            try:
+                                boat_class = last_line
+                            except ValueError:
+                                continue
+
+                            # Only process if this is the current class
+                            if boat_class != class_id_name:
+                                continue
+
+                            # Process the crossing data
+                            for ln in lines[:-1]:  # Exclude the last line (boat class)
+                                ln = ln.strip()
+                                if not ln:
+                                    continue
+                                parts = ln.split()
+                                if len(parts) < 2:
+                                    continue
+                                label = parts[0]
+                                sign_str = parts[1]
+                                try:
+                                    sign = int(sign_str)
+                                except Exception:
+                                    sign = 1 if sign_str.startswith("+") else (-1 if sign_str.startswith("-") else 0)
+
+                                rec = class_summary.setdefault(label, {"up": 0, "down": 0})
+                                if sign < 0:
+                                    rec["down"] += 1
+                                elif sign > 0:
+                                    rec["up"] += 1
+
+                    except Exception as e:
+                        print(f"Warning reading {txt_path}: {e}")
+
+                # Write the class-specific summary
+                for label, rec in sorted(class_summary.items()):
+                    up = rec.get("up", 0)
+                    down = rec.get("down", 0)
+                    total = up + down
+                    fo.write(f"{label}\t{up}\t{down}\t{total}\n")
+
+            # Write details per id (all boat types combined)
+            fo.write("\n=== Details per ID ===\n")
+            for label, rec in sorted(summary.items()):
+                fo.write(f"\n[{label}]\n")
+                per_items = rec.get("per_id", {})
+                def sort_key_item(kv):
+                    k = kv[0]
+                    try:
+                        return (0, int(k))
+                    except Exception:
+                        return (1, k)
+                for oid, signs in sorted(per_items.items(), key=sort_key_item):
+                    # Get the boat type for the current ID
+                    boat_class = None
+                    txt_path = os.path.join(crossings_dir, oid, "crossings.txt")
+                    if os.path.isfile(txt_path):
+                        try:
+                            with open(txt_path, "r", encoding="utf-8") as cf:
+                                lines = cf.readlines()
+                                if lines:
+                                    last_line = lines[-1].strip()
+                                    boat_class = last_line
+                        except Exception as e:
+                            print(f"Warning reading {txt_path}: {e}")
+                    # Write the line with the boat type
+                    if boat_class is not None:
+                        fo.write(f"{oid}\t{', '.join(str(s) for s in signs)}\t{boat_class}\n")
+                    else:
+                        fo.write(f"{oid}\t{', '.join(str(s) for s in signs)}\n")
+
+    except Exception as e:
+        print(f"Warning: could not write summary file: {e}")
+        
+
+
+    ''' old version
     # write summary file in output_dir
     try:
         os.makedirs(output_dir, exist_ok=True)
@@ -121,6 +249,8 @@ def main(video_path, output_dir):
     except Exception as e:
         print(f"Warning: could not write summary file: {e}")
     # --- end new block ---
+    '''
+
 
     # After summary file created, update per-id crossings and existing all_crossings files in temp
     try:
@@ -130,6 +260,8 @@ def main(video_path, output_dir):
         subprocess.run(cmd_dates, check=True)
     except Exception as e:
         print(f"Warning: add_dates_to_crossings failed: {e}")
+
+    
 
     # Clean up non-essential temp files
     try:
