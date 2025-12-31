@@ -114,7 +114,7 @@ def main(video_path, output_dir):
 
         with open(out_path, "w", encoding="utf-8") as fo:
             # global summary (all boat types combined)
-            fo.write("=== Global Summary (All Boat Types) ===\n")
+            fo.write("=== Global ===\n")
             fo.write("line\tup\tdown\ttotal\n")
             for label, rec in sorted(summary.items()):
                 up = rec.get("up", 0)
@@ -125,7 +125,7 @@ def main(video_path, output_dir):
             # per-class summaries
             for class_id in range(num_classes):
                 class_id_name = get_boat_type_name(class_id)
-                fo.write(f"\n=== Class {class_id_name} Summary ===\n")
+                fo.write(f"\n=== {class_id_name} ===\n")
                 fo.write("line\tup\tdown\ttotal\n")
 
                 # class-specific summary

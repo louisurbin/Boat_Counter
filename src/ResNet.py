@@ -14,9 +14,9 @@ def initialize_model(): # will be called once at the start
     model.load_state_dict(model_weights, strict=False) # put the good weights in the model
     model.eval()
 
-    boat_classes = {
-        0: 'administration',
-        1: 'marchandise',
+    boat_classes = {                    ## REVOIR SI CA CORRESPOND BIEN ##
+        0: 'marchandise',
+        1: 'administration',
         2: 'passager_gros',
         3: 'passager_petit',
         4: 'plaisance',
@@ -29,7 +29,8 @@ initialize_model()
 def model_prediction(input_image):
     if model is None: # if the model is not initialized yet
         initialize_model()
-    probabilities = model(input_image) # get the probabilities for each class, its a tensor of shape (1, num_classes)
+    logits = model(input_image) # raw outputs 
+    probabilities = torch.nn.functional.softmax(logits, dim=1) # get the probabilities for each class, its a tensor of shape (1, num_classes)
     return probabilities
 
 

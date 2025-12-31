@@ -23,6 +23,8 @@ def get_prob(image_path):
 
     probabilities = boat_recognition_model(input_image)  # Get probabilities from the model
 
+    #print("probabilities:", probabilities)
+
     return probabilities
 
 
@@ -30,12 +32,16 @@ def process_id_folder(id_folder_path):
     prob_table = [] # store the probabilities for each image in the folder
 
     for image_file in os.listdir(id_folder_path):
+        if not image_file.lower().endswith(('.png', '.jpg', '.jpeg')):
+            continue
         image_path = os.path.join(id_folder_path, image_file)
         prob = get_prob(image_path)
-        prob_table.append((image_file, prob))
+        prob_table.append(prob.detach().numpy()) # convert tensor to numpy array
 
     prob_table = np.array(prob_table)
-    class_sums = np.sum(prob_table[:, 1:].astype(float), axis=0) # For each class, sum probabilities across all images
+    prob_table = prob_table.reshape(-1, 6)
+    #print("prob_table:", prob_table)
+    class_sums = np.sum(prob_table, axis=0) # For each class, sum probabilities across all images
     predicted_class = np.argmax(class_sums) # Class with highest total probability
     
     return predicted_class

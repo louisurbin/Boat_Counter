@@ -169,7 +169,7 @@ def main(extractions_dir='temp/extractions', temp_dir='temp'):
                  ln = raw.rstrip('\n')
                  stripped = ln.strip()
                  # detect start of details section
-                 if stripped.startswith('# Details'):
+                 if stripped.startswith('=== Details per ID ==='):
                      in_details = True
                      out_lines.append(ln)
                      continue
@@ -186,7 +186,7 @@ def main(extractions_dir='temp/extractions', temp_dir='temp'):
                      key = (lab_norm, oid)
                      dates = dates_map.get(key, [])
                      if dates:
-                         new_ln = ln + '\t' + ', '.join(dates)
+                        new_ln = f"{ln}\t{', '.join(dates)}"
                      else:
                          new_ln = ln
                      out_lines.append(new_ln)
