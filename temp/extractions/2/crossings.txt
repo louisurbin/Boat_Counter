@@ -1,2 +1,2 @@
-line	-1	100	500	09/24 08:25:08
-marchandise
+in	-1	101	505	01/01 01:09:26
+marchandise 0.9998

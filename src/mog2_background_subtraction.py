@@ -17,6 +17,7 @@ def parse_args():
     p = argparse.ArgumentParser(description="Apply MOG2 background subtraction to a video.")
     p.add_argument("--input", "-i", type=str, required=True, help="Input video path.")
     p.add_argument("--output", "-o", type=str, required=True, help="Output video path for the mask.")
+    p.add_argument("--mask", "-m", type=str, help="Path to the mask image to apply before MOG2.")
     p.add_argument("--display", "-d", action="store_true", help="Display frames while processing.")
     p.add_argument("--history", type=int, default=HISTORY, help=f"MOG2 history. default={HISTORY}")
     p.add_argument("--var-threshold", dest="var_threshold", type=float, default=VAR_THRESHOLD, help=f"MOG2 varThreshold. default={VAR_THRESHOLD}")
@@ -60,6 +61,17 @@ def main():
     if not fps or fps <= 1 or (isinstance(fps, float) and math.isnan(fps)):
         fps = 30.0
 
+    # Load the mask if provided
+    mask = None
+    if args.mask:
+        mask = cv2.imread(args.mask, cv2.IMREAD_GRAYSCALE)
+        if mask is None:
+            print(f"Failed to load mask: {args.mask}", file=sys.stderr)
+            sys.exit(1)
+        if mask.shape != (height, width):
+            print(f"Mask dimensions do not match video dimensions: {mask.shape} vs {(height, width)}", file=sys.stderr)
+            sys.exit(1)
+
     subtractor = cv2.createBackgroundSubtractorMOG2(
         history=args.history,
         varThreshold=args.var_threshold,
@@ -91,6 +103,10 @@ def main():
         if not ok:
             break
         frame_count += 1
+
+        # Apply the mask if provided
+        if mask is not None:
+            frame = cv2.bitwise_and(frame, frame, mask=mask)
 
         fgmask = subtractor.apply(frame)
 
