@@ -56,23 +56,27 @@ def process_id_folder(id_folder_path):
     return predicted_class, mean_prob
 
 
-def add2crossings(id_folder, id_predicted_class, mean_prob):
+def add2crossings(id_folder, id_predicted_class, mean_prob, min_prob_threshold):
     txt_file_path = os.path.join(id_folder, 'crossings.txt')
-    boat_type_name = get_boat_type_name(id_predicted_class)
+    
     with open(txt_file_path, 'a') as f:
-        f.write(f"{boat_type_name} {mean_prob[id_predicted_class]:.4f}\n") # Append the boat type name and mean probability associated with the ID
+        if mean_prob[id_predicted_class] < min_prob_threshold: # if the mean probability is below the threshold, classify as noise
+            f.write("noise")
+        else:
+            boat_type_name = get_boat_type_name(id_predicted_class)
+            f.write(f"{boat_type_name} {mean_prob[id_predicted_class]:.4f}\n")
     
 
 def main():
-
     ids_root = './temp/extractions/'
+    MIN_PROB_THRESHOLD = 0.5
 
     for folder in os.listdir(ids_root):
         folder_path = os.path.join(ids_root, folder)
         
         if os.path.isdir(folder_path):
             predicted_class, mean_prob = process_id_folder(folder_path)
-            add2crossings(folder_path, predicted_class, mean_prob)
+            add2crossings(folder_path, predicted_class, mean_prob, MIN_PROB_THRESHOLD)
 
 if __name__ == "__main__":
     main()

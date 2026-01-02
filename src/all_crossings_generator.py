@@ -27,6 +27,8 @@ def generate_all_crossings(video_path, crossings_dir, output_dir, num_classes=6)
                 continue
 
             boat_class = last_parts[0]
+            if boat_class.lower() == "noise":
+                continue  # skip noise 
             try:
                 mean_prob = float(last_parts[1])
             except ValueError:
@@ -94,6 +96,8 @@ def generate_all_crossings(video_path, crossings_dir, output_dir, num_classes=6)
 
             for label, rec in summary.items():
                 for info in rec["per_id"].values():
+                    if info["boat_class"].lower() == "noise":
+                        continue  # skip noise
                     if info["boat_class"] != class_name:
                         continue
                     for sign in info["signs"]:
@@ -111,6 +115,8 @@ def generate_all_crossings(video_path, crossings_dir, output_dir, num_classes=6)
         for label, rec in sorted(summary.items()):
             fo.write(f"\n[{label}]\n")
             for oid, info in sorted(rec["per_id"].items(), key=lambda x: int(x[0])):
+                if info["boat_class"].lower() == "noise":
+                    continue  # skip noise 
                 signs_str = ", ".join(str(s) for s in info["signs"])
                 fo.write(
                     f"{oid}\t{signs_str}\t{info['boat_class']}\t{info['mean_prob']:.4f}\n"

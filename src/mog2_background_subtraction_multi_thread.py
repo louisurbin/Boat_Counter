@@ -4,14 +4,15 @@ import sys
 import cv2
 import math
 import numpy as np
+import threading
+import queue
 
-# Example usage: python mog2_background_subtraction.py -i input.mp4 -o output.mp4 -d --no-shadows --no-morph ###
-
-# PARAMÈTRES
-BINARIZE_THRESHOLD = 100  # seuil binaire pour le masque MOG2
-VAR_THRESHOLD = 50      # paramètre de variance
-HISTORY = 1500           # nombre de frames retenues par MOG2 pour estimer le fond.
-MIN_AREA = 500             # aire minimale pour considérer un cluster comme valide
+# PARAMÈTRES PAR DÉFAUT
+BINARIZE_THRESHOLD = 100
+VAR_THRESHOLD = 50
+HISTORY = 1500
+MIN_AREA = 500
+MAX_QUEUE = 100  # Taille maximale des queues
 
 def parse_args():
     p = argparse.ArgumentParser(description="Apply MOG2 background subtraction to a video.")
@@ -28,14 +29,12 @@ def parse_args():
 
 def analyze_clusters(mask, min_area):
     num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(mask, connectivity=8)
-
     valid = stats[1:, cv2.CC_STAT_AREA] >= min_area
     valid_stats = stats[1:][valid]
 
     result = np.zeros_like(mask)
     for x, y, w, h, _ in valid_stats:
         result[y:y+h, x:x+w] = 255
-
     return result
 
 def main():
@@ -53,15 +52,15 @@ def main():
         print(f"Failed to open video: {in_path}", file=sys.stderr)
         sys.exit(1)
 
-    width  = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    fps    = cap.get(cv2.CAP_PROP_FPS)
+    fps = cap.get(cv2.CAP_PROP_FPS)
     if not fps or math.isnan(fps) or fps <= 1:
         print(f"Cannot read FPS from video: {in_path}", file=sys.stderr)
         cap.release()
         sys.exit(1)
 
-    # Load the mask if provided
+    # Load mask if provided
     mask = None
     if args.mask:
         mask = cv2.imread(args.mask, cv2.IMREAD_GRAYSCALE)
@@ -75,12 +74,11 @@ def main():
     subtractor = cv2.createBackgroundSubtractorMOG2(
         history=args.history,
         varThreshold=args.var_threshold,
-        detectShadows=not args.no_shadows # activate by default
+        detectShadows=not args.no_shadows
     )
 
     ext = out_path.suffix.lower()
     fourcc = cv2.VideoWriter_fourcc(*"XVID") if ext == ".avi" else cv2.VideoWriter_fourcc(*"mp4v")
-
     writer = cv2.VideoWriter(str(out_path), fourcc, fps, (width, height), False)
     if not writer.isOpened():
         alt_fourcc = cv2.VideoWriter_fourcc(*"XVID") if fourcc != cv2.VideoWriter_fourcc(*"XVID") else cv2.VideoWriter_fourcc(*"mp4v")
@@ -91,35 +89,66 @@ def main():
             sys.exit(1)
 
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
-    frame_count = 0
-    while True:
-        ok, frame = cap.read()
-        if not ok:
-            break
-        frame_count += 1
 
-        gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) # Convert to grayscale, we don't need color for MOG2
+    # Queues pour pipeline multi-thread
+    frame_queue = queue.Queue(maxsize=MAX_QUEUE)
+    mask_queue = queue.Queue(maxsize=MAX_QUEUE)
 
-        # Apply the mask if provided
-        if mask is not None:
-            gray_frame = cv2.bitwise_and(gray_frame, gray_frame, mask=mask)
-        
-        # Apply MOG2 
-        fgmask = subtractor.apply(gray_frame)
+    # Thread lecture
+    def reader():
+        while True:
+            ok, frame = cap.read()
+            if not ok:
+                frame_queue.put(None)
+                break
+            frame_queue.put(frame)
 
-        if not args.no_morph: # activate by default
-            fgmask = cv2.morphologyEx(fgmask, cv2.MORPH_OPEN, kernel, iterations=1)
-            fgmask = cv2.morphologyEx(fgmask, cv2.MORPH_CLOSE, kernel, iterations=1)
+    # Thread traitement
+    def processor():
+        while True:
+            frame = frame_queue.get()
+            if frame is None:
+                mask_queue.put(None)
+                break
 
-        # Binarisation pour garantir un masque binaire (important pour connectedComponents)
-        _, fgmask_bin = cv2.threshold(fgmask, int(args.binarize_threshold), 255, cv2.THRESH_BINARY)
+            gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-        rect_mask = analyze_clusters(fgmask_bin, args.min_area)
-        writer.write(rect_mask)
+            if mask is not None:
+                gray_frame = cv2.bitwise_and(gray_frame, gray_frame, mask=mask)
+
+            fgmask = subtractor.apply(gray_frame)
+            if not args.no_morph:
+                fgmask = cv2.morphologyEx(fgmask, cv2.MORPH_OPEN, kernel, iterations=1)
+                fgmask = cv2.morphologyEx(fgmask, cv2.MORPH_CLOSE, kernel, iterations=1)
+
+            _, fgmask_bin = cv2.threshold(fgmask, args.binarize_threshold, 255, cv2.THRESH_BINARY)
+            rect_mask = analyze_clusters(fgmask_bin, args.min_area)
+
+            mask_queue.put(rect_mask)
+
+    # Thread écriture
+    def writer_thread():
+        while True:
+            rect_mask = mask_queue.get()
+            if rect_mask is None:
+                break
+            writer.write(rect_mask)
+
+    # Lancement des threads
+    t_reader = threading.Thread(target=reader)
+    t_processor = threading.Thread(target=processor)
+    t_writer = threading.Thread(target=writer_thread)
+
+    t_reader.start()
+    t_processor.start()
+    t_writer.start()
+
+    t_reader.join()
+    t_processor.join()
+    t_writer.join()
 
     cap.release()
     writer.release()
-    #print(f"Processed {frame_count} frames.")
     print(f"MOG2 mask video saved at: {out_path}")
 
 if __name__ == "__main__":
