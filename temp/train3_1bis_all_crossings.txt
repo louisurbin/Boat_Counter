@@ -1,0 +1,29 @@
+=== Global ===
+line	up	down	total
+in	2	1	3
+
+=== marchandise ===
+line	up	down	total
+in	2	1	3
+
+=== administration ===
+line	up	down	total
+
+=== passager_gros ===
+line	up	down	total
+
+=== passager_petit ===
+line	up	down	total
+
+=== plaisance ===
+line	up	down	total
+
+=== restaurant ===
+line	up	down	total
+
+=== Details per ID ===
+
+[in]
+1	-1	marchandise	0.8566
+2	1	marchandise	0.7158
+3	1	marchandise	0.9831

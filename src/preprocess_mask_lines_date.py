@@ -1,21 +1,17 @@
-'''
-Instructions principales :
- - Tracer le polygone (zone d'eau) avec des clics gauches
- - Fermer le polygone avec un clic droit
- - Passer en mode ligne avec la touche 'l'
- - Placer deux points (clic gauche), puis entrer le nom de la ligne directement dans la fenêtre (taper le nom puis Entrée)
- - Touche 's' pour enregistrer le masque et les lignes
- - Touche 'echap' ou 'q' pour quitter
-'''
-
 import cv2
 import numpy as np
 import os
 import argparse
 import json
 
+def get_mask_lines_date_paths(video_path, out_dir):
+    """Génère les chemins pour le masque et les lignes."""
+    base = os.path.splitext(os.path.basename(video_path))[0]
+    mask_path = os.path.join(out_dir, f"{base}_mask.png")
+    lines_path = os.path.join(out_dir, f"{base}_lines_date.json")
+    return mask_path, lines_path
 
-def create_mask_and_lines(video_path, out_dir="temp", window_name="Mask and Lines Editor"):
+def create_mask_lines_date(video_path, out_dir="temp", window_name="Mask, Lines and Date Editor"):
     os.makedirs(out_dir, exist_ok=True)
 
     cap = cv2.VideoCapture(video_path)
@@ -31,6 +27,10 @@ def create_mask_and_lines(video_path, out_dir="temp", window_name="Mask and Line
     polygon_closed = False
 
     display = frame.copy()
+
+    # Créer une fenêtre OpenCV avec une taille appropriée
+    cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+    cv2.resizeWindow(window_name, 1280, 720)  # Taille par défaut plus grande
 
     def draw():
         nonlocal display
@@ -58,8 +58,7 @@ def create_mask_and_lines(video_path, out_dir="temp", window_name="Mask and Line
                 cx, cy = (p1[0] + p2[0]) // 2, (p1[1] + p2[1]) // 2
                 cv2.putText(display, label, (cx + 5, cy - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.6, line_color, 2)
 
-            
-    # temp line preview (un ou deux points placés)
+    # temp line preview 
         if temp_line:
             cv2.circle(display, tuple(temp_line[0]), 4, (255, 0, 0), -1)
             if len(temp_line) >= 2:
@@ -90,7 +89,6 @@ def create_mask_and_lines(video_path, out_dir="temp", window_name="Mask and Line
     # Initialize temp_line as empty list but treat it as "line-mode" toggle via 'l' key
     temp_line = []
 
-    cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
     cv2.setMouseCallback(window_name, on_mouse)
 
     draw()
@@ -237,13 +235,14 @@ def create_mask_and_lines(video_path, out_dir="temp", window_name="Mask and Line
                 json.dump(meta, f, ensure_ascii=False, indent=2)
             print(f"Saved mask -> {mask_path}")
             print(f"Saved lines -> {json_path}")
+            print(f"Saved date -> {json_path}")
             # start_time handled via 'd' GUI input (date_text)
     cv2.destroyAllWindows()
     return
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Create water mask and counting lines from first frame.")
+    parser = argparse.ArgumentParser(description="Create water mask, counting lines and date from first frame.")
     parser.add_argument("video", help="Path to video in data/")
-    parser.add_argument("--out", default="temp", help="Output directory for mask and lines (default: temp/)")
+    parser.add_argument("--out", default="temp", help="Output directory (default: temp/)")
     args = parser.parse_args()
-    create_mask_and_lines(args.video, args.out)
+    create_mask_lines_date(args.video, args.out)

@@ -2,18 +2,7 @@ import os
 import sys
 import json
 from datetime import datetime, timedelta
-
-def find_lines_json(temp_dir):
-    if not os.path.isdir(temp_dir):
-        return None
-    # prefer *_lines_date.json, fallback to *_lines.json
-    for fn in os.listdir(temp_dir):
-        if fn.endswith('_lines_date.json'):
-            return os.path.join(temp_dir, fn)
-    for fn in os.listdir(temp_dir):
-        if fn.endswith('_lines.json'):
-            return os.path.join(temp_dir, fn)
-    return None
+from preprocess_mask_lines_date import get_mask_lines_date_paths
 
 def parse_start_time(s):
     fmts = ['%m/%d %H:%M:%S', '%m/%d/%Y %H:%M:%S', '%Y-%m-%d %H:%M:%S', '%Y-%m-%dT%H:%M:%S']
@@ -27,21 +16,21 @@ def parse_start_time(s):
             continue
     raise ValueError(f"Could not parse start_time: {s}")
 
-def add_dates(extractions_dir='temp/extractions', temp_dir='temp'):
+def add_dates(extractions_dir='temp/extractions', temp_dir='temp'):          #### a reprendre #######
     """
     Parcourt tous les crossings.txt et ajoute une colonne date calculée
     à partir de start_time dans *_lines.json et du nombre de secondes.
     Met à jour aussi les sections Details per ID dans *_all_crossings*.
     """
-    lines_json = find_lines_json(temp_dir)
-    if not lines_json:
+    _, lines_path = get_mask_lines_date_paths(temp_dir, temp_dir)
+    if not lines_path:
         print('Error: no *_lines.json found in', temp_dir, file=sys.stderr)
         return 1
-    with open(lines_json, 'r', encoding='utf-8') as f:
+    with open(lines_path, 'r', encoding='utf-8') as f:
         meta = json.load(f)
     start_s = meta.get('start_time')
     if not start_s:
-        print('Error: start_time missing in', lines_json, file=sys.stderr)
+        print('Error: start_time missing in', lines_path, file=sys.stderr)
         return 1
     try:
         start_dt = parse_start_time(start_s)
@@ -130,7 +119,7 @@ def add_dates(extractions_dir='temp/extractions', temp_dir='temp'):
                 for ol in out_lines:
                     f.write(ol + '\n')
 
-    # --- update *_all_crossings files ---
+    # update *_all_crossings files 
     dates_map = {}
     for oid, label, sens, sec, date in rows_all:
         key = (label.strip().lower(), str(oid).strip())
