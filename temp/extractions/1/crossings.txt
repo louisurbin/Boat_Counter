@@ -1,2 +1,0 @@
-in	-1	101	505
-marchandise 0.8566

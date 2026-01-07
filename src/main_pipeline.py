@@ -29,13 +29,13 @@ def main(video_path, output_dir):
     subprocess.run(cmd, check=True)
 
     # Step 3: Apply sort_tracker to count crossings
-    print("Step 3: Applying sort_tracker...")
+    print("Step 3: Tracking...")
     tracked_video_path = os.path.join(output_dir, f"{os.path.splitext(os.path.basename(video_path))[0]}_tracked.mp4")
     cmd_sort = [sys.executable, os.path.join(os.path.dirname(__file__), "tracker_main.py"),
                "--video", mog2_output_path,
                "--lines_json", lines_path,
                "--save", tracked_video_path,
-               "--color", os.path.abspath(video_path)]
+               "--color_video", os.path.abspath(video_path)]
     subprocess.run(cmd_sort, check=True)
 
     # Step 4: Generate per-id crossings with datetime and aggregated all_crossings in ./temp
@@ -67,8 +67,8 @@ def main(video_path, output_dir):
             # candidate mask files to remove: contain '_mask', '_mog2', '_tracked'
             if (
                 "_mask" in low
-                or "_mog2" in low
-                or "_tracked" in low
+                #or "_mog2" in low
+                #or "_tracked" in low
             ):
                 try:
                     os.remove(fpath)

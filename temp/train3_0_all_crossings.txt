@@ -1,0 +1,76 @@
+=== Global ===
+line	up	down	total
+in	17	33	50
+
+=== marchandise ===
+line	up	down	total
+in	17	33	50
+
+=== administration ===
+line	up	down	total
+
+=== passager_gros ===
+line	up	down	total
+
+=== passager_petit ===
+line	up	down	total
+
+=== plaisance ===
+line	up	down	total
+
+=== restaurant ===
+line	up	down	total
+
+=== Details per ID ===
+
+[in]
+1	1	marchandise	0.8166	09/23 11:15:27
+3	1	marchandise	0.9472	09/23 11:30:02
+6	-1	marchandise	0.9996	09/23 11:41:22
+9	-1	marchandise	0.8163	09/23 11:52:42
+10	-1	marchandise	0.9994	09/23 11:54:32
+11	-1	marchandise	0.7157	09/23 11:55:42
+14	-1	marchandise	0.9881	09/23 12:20:47
+15	-1	marchandise	0.9434	09/23 12:21:47
+16	-1	marchandise	0.9999	09/23 12:24:37
+18	1	marchandise	0.7949	09/23 12:50:32
+21	-1	marchandise	0.9894	09/23 13:05:37
+22	-1	marchandise	0.7617	09/23 13:06:52
+23	-1	marchandise	0.9855	09/23 13:08:12
+26	-1	marchandise	0.9109	09/23 13:12:32
+27	1	marchandise	0.9983	09/23 13:14:07
+28	-1	marchandise	0.8790	09/23 13:16:37
+36	1	marchandise	0.9964	09/23 13:48:12
+38	-1	marchandise	0.9975	09/23 13:53:42
+39	1	marchandise	0.7298	09/23 14:00:47
+45	-1	marchandise	0.7593	09/23 14:12:37
+46	-1	marchandise	0.9086	09/23 14:18:17
+50	-1	marchandise	0.9316	09/23 14:36:37
+51	-1	marchandise	0.9821	09/23 14:38:12
+53	1	marchandise	0.9994	09/23 14:44:17
+56	-1	marchandise	0.9994	09/23 14:49:27
+58	1	marchandise	0.9599	09/23 14:56:37
+63	1	marchandise	0.6061	09/23 15:01:27
+66	-1	marchandise	0.6033	09/23 15:11:57
+67	-1	marchandise	0.9800	09/23 15:16:27
+68	1	marchandise	0.9742	09/23 15:37:52
+71	-1	marchandise	0.9999	09/23 15:51:52
+72	1	marchandise	0.9934	09/23 15:54:57
+75	-1	marchandise	0.9914	09/23 16:10:12
+77	-1	marchandise	0.5543	09/23 16:26:22
+79	1	marchandise	0.8160	09/23 16:29:32
+80	1	marchandise	0.9644	09/23 16:39:22
+81	-1	marchandise	0.9110	09/23 16:41:37
+82	1	marchandise	0.9987	09/23 16:45:07
+84	-1	marchandise	0.9917	09/23 16:59:57
+87	-1	marchandise	0.9991	09/23 17:03:27
+88	-1	marchandise	0.7742	09/23 17:04:27
+89	-1	marchandise	0.7514	09/23 17:05:32
+91	1	marchandise	0.8512	09/23 17:28:57
+93	1	marchandise	0.8130	09/23 17:32:47
+105	-1	marchandise	0.9401	09/23 18:18:27
+111	-1	marchandise	0.9939	09/23 18:42:22
+116	-1	marchandise	0.9989	09/23 19:02:52
+118	-1	marchandise	0.9844	09/23 19:11:32
+119	-1	marchandise	0.9475	09/23 19:26:32
+120	1	marchandise	0.9971	09/23 19:28:22

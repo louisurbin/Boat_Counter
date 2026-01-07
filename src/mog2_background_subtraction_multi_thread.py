@@ -7,11 +7,12 @@ import numpy as np
 import threading
 import queue
 
-# PARAMÈTRES PAR DÉFAUT
-BINARIZE_THRESHOLD = 100
-VAR_THRESHOLD = 50
-HISTORY = 1500
-MIN_AREA = 500
+# PARAMÈTRES
+VAR_THRESHOLD = 30
+HISTORY = 50
+MIN_AREA = 10**2
+MORPH_KERNEL_OPEN = 7
+MORPH_KERNEL_CLOSE = 50
 MAX_QUEUE = 100  # Taille maximale des queues
 
 def parse_args():
@@ -19,23 +20,19 @@ def parse_args():
     p.add_argument("--input", "-i", type=str, required=True, help="Input video path.")
     p.add_argument("--output", "-o", type=str, required=True, help="Output video path for the mask.")
     p.add_argument("--mask", "-m", type=str, help="Path to the mask image to apply before MOG2.")
-    p.add_argument("--history", type=int, default=HISTORY, help=f"MOG2 history. default={HISTORY}")
-    p.add_argument("--var-threshold", dest="var_threshold", type=float, default=VAR_THRESHOLD, help=f"MOG2 varThreshold. default={VAR_THRESHOLD}")
-    p.add_argument("--binarize-threshold", dest="binarize_threshold", type=int, default=BINARIZE_THRESHOLD, help=f"Threshold (0-255) to binarize MOG2 mask. default={BINARIZE_THRESHOLD}")
-    p.add_argument("--min-area", type=int, default=MIN_AREA, help=f"Minimum area to keep a cluster. default={MIN_AREA}")
-    p.add_argument("--no-shadows", action="store_true", help="Disable shadow detection in MOG2.")
-    p.add_argument("--no-morph", action="store_true", help="Disable morphological cleanup of the mask.")
     return p.parse_args()
 
-def analyze_clusters(mask, min_area):
-    num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(mask, connectivity=8)
-    valid = stats[1:, cv2.CC_STAT_AREA] >= min_area
-    valid_stats = stats[1:][valid]
-
-    result = np.zeros_like(mask)
-    for x, y, w, h, _ in valid_stats:
-        result[y:y+h, x:x+w] = 255
-    return result
+def analyze_clusters(mask, result):
+    """
+    Fill bounding boxes of connected components above MIN_AREA directly in 'result'.
+    Reuses the same buffer to avoid allocations.
+    """
+    result.fill(0)
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    for cnt in contours:
+        if cv2.contourArea(cnt) >= MIN_AREA:
+            x, y, w, h = cv2.boundingRect(cnt)
+            result[y:y+h, x:x+w] = 255
 
 def main():
     args = parse_args()
@@ -52,9 +49,9 @@ def main():
         print(f"Failed to open video: {in_path}", file=sys.stderr)
         sys.exit(1)
 
-    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    width  = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    fps = cap.get(cv2.CAP_PROP_FPS)
+    fps    = cap.get(cv2.CAP_PROP_FPS)
     if not fps or math.isnan(fps) or fps <= 1:
         print(f"Cannot read FPS from video: {in_path}", file=sys.stderr)
         cap.release()
@@ -62,6 +59,7 @@ def main():
 
     # Load mask if provided
     mask = None
+    mask_zero = None
     if args.mask:
         mask = cv2.imread(args.mask, cv2.IMREAD_GRAYSCALE)
         if mask is None:
@@ -70,11 +68,20 @@ def main():
         if mask.shape != (height, width):
             print(f"Mask dimensions do not match video dimensions: {mask.shape} vs {(height, width)}", file=sys.stderr)
             sys.exit(1)
+        mask_zero = (mask == 0)
 
+        ys, xs = np.where(mask != 0)
+        y0, y1 = ys.min(), ys.max() + 1
+        x0, x1 = xs.min(), xs.max() + 1
+        roi_slice = (slice(y0, y1), slice(x0, x1))
+    else:
+        roi_slice = (slice(0, height), slice(0, width))
+
+    # MOG2 background subtractor
     subtractor = cv2.createBackgroundSubtractorMOG2(
-        history=args.history,
-        varThreshold=args.var_threshold,
-        detectShadows=not args.no_shadows
+        history=HISTORY,
+        varThreshold=VAR_THRESHOLD,
+        detectShadows=True
     )
 
     ext = out_path.suffix.lower()
@@ -88,9 +95,11 @@ def main():
             cap.release()
             sys.exit(1)
 
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+    kernel_open = cv2.getStructuringElement(cv2.MORPH_RECT, (MORPH_KERNEL_OPEN, MORPH_KERNEL_OPEN))
+    kernel_close = cv2.getStructuringElement(cv2.MORPH_RECT, (MORPH_KERNEL_CLOSE, MORPH_KERNEL_CLOSE))
 
-    # Queues pour pipeline multi-thread
+    rect_mask = np.zeros((height, width), dtype=np.uint8)
+
     frame_queue = queue.Queue(maxsize=MAX_QUEUE)
     mask_queue = queue.Queue(maxsize=MAX_QUEUE)
 
@@ -112,29 +121,29 @@ def main():
                 break
 
             gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            if mask_zero is not None:
+                gray_frame[mask_zero] = 0
 
-            if mask is not None:
-                gray_frame = cv2.bitwise_and(gray_frame, gray_frame, mask=mask)
+            fgmask = np.zeros((height, width), dtype=np.uint8)
+            roi = gray_frame[roi_slice]
+            fg_roi = subtractor.apply(roi)
+            fgmask[roi_slice] = fg_roi
 
-            fgmask = subtractor.apply(gray_frame)
-            if not args.no_morph:
-                fgmask = cv2.morphologyEx(fgmask, cv2.MORPH_OPEN, kernel, iterations=1)
-                fgmask = cv2.morphologyEx(fgmask, cv2.MORPH_CLOSE, kernel, iterations=1)
+            # Morphological cleanup
+            fgmask = cv2.morphologyEx(fgmask, cv2.MORPH_OPEN, kernel_open, iterations=1)
+            fgmask = cv2.morphologyEx(fgmask, cv2.MORPH_CLOSE, kernel_close, iterations=1)
 
-            _, fgmask_bin = cv2.threshold(fgmask, args.binarize_threshold, 255, cv2.THRESH_BINARY)
-            rect_mask = analyze_clusters(fgmask_bin, args.min_area)
-
-            mask_queue.put(rect_mask)
+            analyze_clusters(fgmask, rect_mask)
+            mask_queue.put(rect_mask.copy())
 
     # Thread écriture
     def writer_thread():
         while True:
-            rect_mask = mask_queue.get()
-            if rect_mask is None:
+            rect_mask_out = mask_queue.get()
+            if rect_mask_out is None:
                 break
-            writer.write(rect_mask)
+            writer.write(rect_mask_out)
 
-    # Lancement des threads
     t_reader = threading.Thread(target=reader)
     t_processor = threading.Thread(target=processor)
     t_writer = threading.Thread(target=writer_thread)
@@ -153,3 +162,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

@@ -4,6 +4,13 @@ import os
 import argparse
 import json
 
+def get_lines_date_path(temp_dir):
+    """Get the path to the lines and date JSON file."""
+    for fname in os.listdir(temp_dir):
+        if fname.endswith('_lines_date.json'):
+            return os.path.join(temp_dir, fname)
+    return None
+
 def get_mask_lines_date_paths(video_path, out_dir):
     """Génère les chemins pour le masque et les lignes."""
     base = os.path.splitext(os.path.basename(video_path))[0]
@@ -99,7 +106,7 @@ def create_mask_lines_date(video_path, out_dir="temp", window_name="Mask, Lines 
     print(" - z : undo last polygon point or last line.")
     print(" - r : reset everything.")
     print(" - d : enter date input mode (MM/DD HH:MM:SS) to set video start time.")
-    print(" - s : save mask and lines to temp/.")
+    print(" - s : save mask, lines and date to temp/.")
     print(" - ESC : quit without saving.")
 
     line_mode = False

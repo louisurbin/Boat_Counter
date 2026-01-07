@@ -1,2 +1,0 @@
-in	+1	193	965
-marchandise 0.9831

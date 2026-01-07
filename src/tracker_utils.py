@@ -7,20 +7,17 @@ import os
 # =============================================================================
 
 # Paramètres de détection
-MIN_AREA = 100*50              # Aire minimale (px^2) pour considérer un contour
-MAX_BOX_SIDE = None            # Taille max (px) d'une boîte (None = pas de limite)
-REAL_FPS = 0.2                 # Fréquence réelle (1 image toutes les 5 secondes)
+MIN_AREA = 200                 # Aire minimale (px^2) pour considérer un contour comme valide
+REAL_FPS = 1/5                 # Fréquence réelle (1 image toutes les 5 secondes)
 NMS_IOU = 0.3                  # Seuil IoU pour la suppression des non-maxima (fusion doublons détection)
-MORPH_KERNEL_SIZE = 10         # Taille du noyau pour le nettoyage morphologique
 
-# Paramètres de tracking (SORT)
-MAX_DISAPPEARED = 3            # Nombre de frames avant suppression d'un objet perdu
-MAX_DISTANCE = None            # Distance max (px) pour associer une détection à un track
-NEW_IOU = 0.3                  # Seuil IoU pour éviter de créer un ID sur un objet existant
-MIN_TRACK_LENGTH = 500           # Durée de vie minimale (frames) pour valider une trajectoire
+# Paramètres de tracking 
+MAX_DISTANCE = 200              # Distance max (px) pour associer une détection à un track (None = pas de limite)
+NEW_IOU = 0.15                  # Seuil IoU pour éviter de créer un ID sur un objet existant
+MIN_TRACK_LENGTH = 4            # Durée de vie min pour valider trajectoire et intervalle entre vérifs de crossings
 
 # =============================================================================
-# FONCTIONS UTILITAIRES (GÉOMÉTRIE)
+# FONCTIONS UTILITAIRES 
 # =============================================================================
 
 def bbox_area(b):
@@ -86,25 +83,15 @@ def detect_rectangles(frame):
     """
     Détecte les rectangles blancs sur fond noir (image binaire).
     """
-    # Assurer que l'image est en niveaux de gris (0-255)
-    if len(frame.shape) == 3:
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    if frame.shape[2] == 3:
+        gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     else:
-        gray = frame
+        gray_frame = frame
 
-    # Nettoyage morphologique (bruit) - utile même si déjà binaire
-    k = MORPH_KERNEL_SIZE
-    if k % 2 == 0: k += 1
-    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (k, k))
-
-    bw = cv2.morphologyEx(gray, cv2.MORPH_OPEN, kernel, iterations=1)
-    bw = cv2.morphologyEx(bw, cv2.MORPH_CLOSE, kernel, iterations=1)
-
-    contours, _ = cv2.findContours(bw, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    contours, _ = cv2.findContours(gray_frame, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     candidates = []
     scores = []
-    frame_h, frame_w = frame.shape[:2]
 
     for cnt in contours:
         area = cv2.contourArea(cnt)
@@ -114,35 +101,12 @@ def detect_rectangles(frame):
         x, y, w, h = cv2.boundingRect(cnt)
         box = (int(x), int(y), int(x + w), int(y + h))
 
-        # Gestion de la taille maximale (redimensionnement centré)
-        if MAX_BOX_SIDE is not None:
-            box_w, box_h = box[2] - box[0], box[3] - box[1]
-            if box_w > MAX_BOX_SIDE or box_h > MAX_BOX_SIDE:
-                cx, cy = box[0] + box_w // 2, box[1] + box_h // 2
-                new_w = min(box_w, MAX_BOX_SIDE)
-                new_h = min(box_h, MAX_BOX_SIDE)
-                x1 = max(0, cx - new_w // 2)
-                y1 = max(0, cy - new_h // 2)
-                x2 = min(frame_w, x1 + new_w)
-                y2 = min(frame_h, y1 + new_h)
-                box = (int(x1), int(y1), int(x2), int(y2))
-
         candidates.append(box)
         scores.append(area)
 
     # Suppression des doublons (NMS)
     keep_idx = nms(candidates, scores=scores)
     return [candidates[i] for i in keep_idx]
-
-def open_capture(src):
-    """
-    Ouvre une capture vidéo à partir d'une source (fichier ou webcam).
-    """
-    try:
-        idx = int(src)
-        return cv2.VideoCapture(idx)
-    except ValueError:
-        return cv2.VideoCapture(src)
 
 def check_crossing(p1, p2, prev_pt, curr_pt):
     """
@@ -164,14 +128,14 @@ def check_crossing(p1, p2, prev_pt, curr_pt):
     prod_prev = np.dot(normal, vec_prev)
     prod_curr = np.dot(normal, vec_curr)
 
-    # Changement de signe = traversée potentielle
+    # Changement de signe = traversée 
     if prod_prev * prod_curr < 0:
         # Convention: monte = +1 (y diminue)
         sign = 1 if curr_pt[1] < prev_pt[1] else -1
         return True, sign
     return False, 0
 
-def save_crops(color_src, frame_annotations, crossings_per_id, base_temp):
+def save_crops(color_src, frame_annotations, crossings_per_id, base_temp, completed):
     """
     Extrait et sauvegarde les crops des objets qui ont croisé une ligne dans la vidéo couleur.
     """
@@ -194,8 +158,8 @@ def save_crops(color_src, frame_annotations, crossings_per_id, base_temp):
             h, w = frame.shape[:2]
 
             for oid, bbox in anns.items():
-                # On ne garde que les objets qui ont croisé une ligne
-                if oid not in crossings_per_id:
+                # On ne garde que les objets qui ont croisé une ligne et dont la trajectoire est suffisamment longue
+                if oid not in crossings_per_id or oid not in completed:
                     continue
 
                 x1, y1, x2, y2 = map(int, bbox)
@@ -211,23 +175,23 @@ def save_crops(color_src, frame_annotations, crossings_per_id, base_temp):
                     fname = f"{c_idx:06d}_{cnt}.jpg"
                     cv2.imwrite(os.path.join(oid_dir, fname), crop, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
                     save_counts[oid] = cnt + 1
-
         c_idx += 1
-
     cap_color.release()
 
-def export_crossings_data(crossings_per_id, base_temp):
+def export_crossings_data(crossings_per_id, base_temp, completed):
     """
     Exporte les données de franchissement de lignes.
     """
     print("Export des données...")
     for oid, crossings in crossings_per_id.items():
-        oid_dir = os.path.join(base_temp, str(oid))
-        os.makedirs(oid_dir, exist_ok=True)
+        # Vérifier si la trajectoire est suffisamment longue
+        if oid in completed:
+            oid_dir = os.path.join(base_temp, str(oid))
+            os.makedirs(oid_dir, exist_ok=True)
 
-        with open(os.path.join(oid_dir, "crossings.txt"), "w", encoding="utf-8") as f:
-            for (label, sign, f_idx) in crossings:
-                # Calcul du temps réel basé sur REAL_FPS
-                seconds = f_idx / REAL_FPS
-                sens = "+1" if sign > 0 else "-1"
-                f.write(f"{label}\t{sens}\t{f_idx}\t{int(seconds)}\n")
+            with open(os.path.join(oid_dir, "crossings.txt"), "w", encoding="utf-8") as f:
+                for (label, sign, f_idx) in crossings:
+                    # Calcul du temps réel basé sur REAL_FPS
+                    seconds = f_idx / REAL_FPS
+                    sens = "+1" if sign > 0 else "-1"
+                    f.write(f"{label}\t{sens}\t{f_idx}\t{int(seconds)}\n")
