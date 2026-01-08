@@ -10,7 +10,7 @@ VAR_THRESHOLD = 30                          # paramètre de variance
 HISTORY = 50                                # nombre de frames retenues par MOG2 pour estimer le fond
 MIN_AREA = 10**2                            # aire minimale pour considérer un cluster comme valide  
 MORPH_KERNEL_OPEN = 7                       # taille max du bruit blanc à supprimer
-MORPH_KERNEL_CLOSE = 50                     # taille max des trous noirs à combler (px)
+MORPH_KERNEL_CLOSE = 50                     # taille max des trous noirs à combler 
 
 def parse_args():
     p = argparse.ArgumentParser(description="Apply MOG2 background subtraction to a video.")

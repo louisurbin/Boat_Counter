@@ -1,20 +1,24 @@
 import cv2
 import numpy as np
 import os
+import shutil
 
 # =============================================================================
 # CONSTANTES
 # =============================================================================
 
 # Paramètres de détection
-MIN_AREA = 200                 # Aire minimale (px^2) pour considérer un contour comme valide
+MIN_AREA = 100                 # Aire minimale (px^2) pour considérer un contour comme valide
 REAL_FPS = 1/5                 # Fréquence réelle (1 image toutes les 5 secondes)
 NMS_IOU = 0.3                  # Seuil IoU pour la suppression des non-maxima (fusion doublons détection)
 
 # Paramètres de tracking 
-MAX_DISTANCE = 200              # Distance max (px) pour associer une détection à un track (None = pas de limite)
-NEW_IOU = 0.15                  # Seuil IoU pour éviter de créer un ID sur un objet existant
-MIN_TRACK_LENGTH = 4            # Durée de vie min pour valider trajectoire et intervalle entre vérifs de crossings
+MAX_DISTANCE = 150              # Distance max (px) pour associer une détection à un track (None = pas de limite)
+NEW_IOU = 0.5                  # Seuil IoU pour éviter de créer un ID sur un objet existant
+MIN_TRACK_LENGTH = 3            # Durée de vie min pour valider trajectoire et intervalle entre vérifs de crossings
+
+# Paramètre de crop
+MIN_SIDE_CROP = 30              # Taille min (px) d'un côté pour sauvegarder un crop
 
 # =============================================================================
 # FONCTIONS UTILITAIRES 
@@ -166,17 +170,27 @@ def save_crops(color_src, frame_annotations, crossings_per_id, base_temp, comple
                 x1, y1 = max(0, x1), max(0, y1)
                 x2, y2 = min(w, x2), min(h, y2)
 
-                if x2 > x1 and y2 > y1:
+                if (x2-x1) > MIN_SIDE_CROP and (y2-y1)> MIN_SIDE_CROP: # Taille min du crop
                     crop = frame[y1:y2, x1:x2]
                     oid_dir = os.path.join(base_temp, str(oid))
                     os.makedirs(oid_dir, exist_ok=True)
-
                     cnt = save_counts.get(oid, 0)
                     fname = f"{c_idx:06d}_{cnt}.jpg"
                     cv2.imwrite(os.path.join(oid_dir, fname), crop, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
                     save_counts[oid] = cnt + 1
+            
         c_idx += 1
     cap_color.release()
+    
+    # Nettoyage des objets sans crops sauvegardés
+    for oid in list(completed):
+        if save_counts.get(oid, 0) == 0:
+            completed.pop(oid, None)
+            crossings_per_id.pop(oid, None)
+
+            oid_dir = os.path.join(base_temp, str(oid))
+            if os.path.exists(oid_dir):
+                shutil.rmtree(oid_dir)
 
 def export_crossings_data(crossings_per_id, base_temp, completed):
     """

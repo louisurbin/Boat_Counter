@@ -37,7 +37,7 @@ def create_mask_lines_date(video_path, out_dir="temp", window_name="Mask, Lines 
 
     # Créer une fenêtre OpenCV avec une taille appropriée
     cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
-    cv2.resizeWindow(window_name, 1280, 720)  # Taille par défaut plus grande
+    cv2.resizeWindow(window_name, w, h)  # Taille par défaut plus grande
 
     def draw():
         nonlocal display

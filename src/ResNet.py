@@ -1,4 +1,5 @@
 import torch
+import torch.nn as nn
 from torchvision import models
 
 num_classes = 6
@@ -25,9 +26,18 @@ def initialize_model():
     global model
 
     model = models.resnet18(weights=None)
-    model.fc = torch.nn.Linear(model.fc.in_features, num_classes) # modify the head for our number of classes
+    
+    num_features = model.fc.in_features # new head 
+    model.fc = nn.Sequential(
+        nn.Linear(num_features, 256),
+        nn.ReLU(),
+        nn.Dropout(p=0.4),
+        nn.Linear(256, num_classes)
+    )
+    
     model_weights = torch.load('./models/boat_recognition_model.pth', map_location=DEVICE) 
-    model.load_state_dict(model_weights, strict=False) # put the good weights in the model
+    model.load_state_dict(model_weights, strict=True) # put the good weights in the model
+
     model.to(DEVICE) 
     model.eval() 
 

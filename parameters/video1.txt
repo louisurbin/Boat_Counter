@@ -1,0 +1,22 @@
+### MOG2 ###
+
+VAR_THRESHOLD = 30                          
+HISTORY = 50                               
+MIN_AREA = 100                           
+MORPH_KERNEL_OPEN = 7                    
+MORPH_KERNEL_CLOSE = 50 
+
+### TRACKER ###
+
+MIN_AREA = 200              
+REAL_FPS = 1/5                 
+NMS_IOU = 0.3                  
+MAX_DISTANCE = 200              
+NEW_IOU = 0.15                 
+MIN_TRACK_LENGTH = 4            
+MIN_SIDE_CROP = 50             
+                
+### ID_TO_BOAT ###
+
+MAX_IMAGES_PER_ID = 5
+MIN_PROB_THRESHOLD = 0.5
