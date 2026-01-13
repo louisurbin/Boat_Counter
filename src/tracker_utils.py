@@ -207,5 +207,5 @@ def export_crossings_data(crossings_per_id, base_temp, completed):
                 for (label, sign, f_idx) in crossings:
                     # Calcul du temps réel basé sur REAL_FPS
                     seconds = f_idx / REAL_FPS
-                    sens = "+1" if sign > 0 else "-1"
-                    f.write(f"{label}\t{sens}\t{f_idx}\t{int(seconds)}\n")
+                    direction = "+1" if sign > 0 else "-1"
+                    f.write(f"{label}\t{direction}\t{f_idx}\t{int(seconds)}\n")

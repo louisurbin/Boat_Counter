@@ -10,10 +10,11 @@ from visualization_utils import visualize_line_crossings
 # Need to add some explanations about the pipeline here, the constants, etc.
 ###
 
-### Exemple d'utilisation : python3 ./src/main_pipeline.py ./data/input_video.mp4 --out output_directory ###
+### Exemple d'utilisation : python3 ./src/main_pipeline.py ./data/input_video.mp4 --out output_directory --mode lgc ###
 
-def main(video_path, output_dir):
+def main(video_path, output_dir, mode):
     """Orchestre le pipeline complet."""
+
     # Step 1: Create mask and lines interactively
     print("Step 1: Creating mask and lines...")
     create_mask_lines_date(video_path, output_dir)
@@ -28,20 +29,31 @@ def main(video_path, output_dir):
     cmd = [sys.executable, os.path.join(os.path.dirname(__file__), "mog2_background_subtraction.py"), "-i", video_path, "-o", mog2_output_path, "-m", mask_path]
     subprocess.run(cmd, check=True)
 
-    # Step 3: Apply sort_tracker to count crossings
-    print("Step 3: Tracking...")
-    tracked_video_path = os.path.join(output_dir, f"{os.path.splitext(os.path.basename(video_path))[0]}_tracked.mp4")
-    cmd_sort = [sys.executable, os.path.join(os.path.dirname(__file__), "tracker_main.py"),
-               "--video", mog2_output_path,
-               "--lines_json", lines_path,
-               "--save", tracked_video_path,
-               "--color_video", os.path.abspath(video_path)]
-    subprocess.run(cmd_sort, check=True)
+    # Step 3: Tracking or LineGateCapture
+    if mode == "tracker":
+        print("Step 3: Tracking...")
+        tracked_video_path = os.path.join(output_dir, f"{os.path.splitext(os.path.basename(video_path))[0]}_tracked.mp4")
+        cmd_sort = [sys.executable, os.path.join(os.path.dirname(__file__), "tracker_main.py"),
+                "--video", mog2_output_path,
+                "--lines_json", lines_path,
+                "--save", tracked_video_path,
+                "--color_video", os.path.abspath(video_path)]
+        subprocess.run(cmd_sort, check=True)
+    elif mode == "lgc":
+        print("Step 3: Line Gate Capture...")
+        cmd_lgc = [sys.executable, os.path.join(os.path.dirname(__file__), "line_gate_capture.py"),
+                   "--video", mog2_output_path,
+                   "--color_video", os.path.abspath(video_path),
+                   "--lines_json", lines_path]
+        subprocess.run(cmd_lgc, check=True)
+    else:
+        print(f"Unknown mode: {mode}")
+        sys.exit(1)
 
     # Step 4: Generate per-id crossings with datetime and aggregated all_crossings in ./temp
     print("Step 4: Visualizing crossings...")
-    crossings_dir = os.path.abspath(os.path.join(".", "temp", "extractions"))
-    visualize_line_crossings(video_path, lines_path, crossings_dir)
+    id_dir = os.path.abspath(os.path.join(".", "temp", "extractions"))
+    visualize_line_crossings(video_path, lines_path, id_dir)
 
     # Step 5: Call id_to_boat.py to add boat type to _all_crossings.txt 
     print("Step 5: Adding boat type to crossings...")
@@ -52,7 +64,7 @@ def main(video_path, output_dir):
         print(f"Warning: id_to_boat.py failed: {e}")
 
     # Generate aggregated all_crossings summary
-    generate_all_crossings(video_path=video_path, crossings_dir=crossings_dir, output_dir=output_dir)
+    generate_all_crossings(video_path, id_dir, output_dir)
 
     # Clean up non-essential temp files
     try:
@@ -82,5 +94,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Main pipeline: preprocess mask/lines/date, MOG2 background subtraction, tracking, classification.")
     parser.add_argument("video", help="Path to input video")
     parser.add_argument("--out", default="temp", help="Output directory")
+    parser.add_argument("--mode", choices=["tracker", "lgc"], default="tracker", help="Processing mode")
     args = parser.parse_args()
-    main(args.video, args.out)
+    main(args.video, args.out, args.mode)

@@ -3,8 +3,8 @@ import json
 import os
 import math
 
-def visualize_line_crossings(video_path, lines_json_path, crossings_dir):
-    """Visualise les franchissements de lignes (version optimisée, I/O identiques)."""
+def visualize_line_crossings(video_path, lines_json_path, id_dir):
+    """Visualize line crossings on the first frame of the video, with arrows and counts."""
     # Read first frame 
     cap = cv2.VideoCapture(video_path)
     ret, frame = cap.read()
@@ -23,8 +23,8 @@ def visualize_line_crossings(video_path, lines_json_path, crossings_dir):
     line_counts = {line["label"]: {"up": 0, "down": 0} for line in lines}
 
     # Aggregate crossings 
-    if crossings_dir and os.path.exists(crossings_dir):
-        for entry in os.scandir(crossings_dir):
+    if id_dir and os.path.exists(id_dir):
+        for entry in os.scandir(id_dir):
             if not entry.is_dir():
                 continue
             txt_path = os.path.join(entry.path, "crossings.txt")
@@ -58,8 +58,8 @@ def visualize_line_crossings(video_path, lines_json_path, crossings_dir):
             except Exception as e:
                 print(f"Warning reading {txt_path}: {e}")
 
-    elif crossings_dir:
-        print(f"Crossings directory not found: {crossings_dir}")
+    elif id_dir:
+        print(f"Crossings directory not found: {id_dir}")
 
     # Drawing constants
     font = cv2.FONT_HERSHEY_SIMPLEX

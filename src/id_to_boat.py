@@ -3,16 +3,13 @@ import random
 import torch
 from PIL import Image
 from torchvision import transforms
-from ResNet import model_prediction, get_boat_type_name
+from ResNet_boat_type import model_prediction, get_boat_type_name
 
-###
-# It's possible to change the number of images evaluated per ID in process_id_folder function.
-# 5 is a good balance between speed and accuracy.
-###
+# Paramètres
+MAX_IMAGES_PER_ID = 5     # It's possible to change the number of images evaluated per ID in process_id_folder function. 5 is a good balance between speed and accuracy.
+MIN_PROB_THRESHOLD = 0.5
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-MAX_IMAGES_PER_ID = 5
-MIN_PROB_THRESHOLD = 0.5
 
 # Transformations applied to each image before inference
 transform = transforms.Compose([

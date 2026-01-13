@@ -126,6 +126,11 @@ def main():
 
         # Note: no threshold needed, shadows included as objects
         analyze_clusters(fgmask, rect_mask)
+
+        # Write the first frame as black (ow white by default in MOG2)
+        if frame_count == 1:
+            rect_mask.fill(0)
+
         writer.write(rect_mask)
 
     cap.release()

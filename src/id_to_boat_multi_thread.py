@@ -3,18 +3,15 @@ import random
 import torch
 from PIL import Image
 from torchvision import transforms
-from ResNet import model_prediction, get_boat_type_name
+from ResNet_boat_type import model_prediction, get_boat_type_name
 from concurrent.futures import ThreadPoolExecutor
 from multiprocessing import Pool, cpu_count
 
-###
-# It's possible to change the number of images evaluated per ID in process_id_folder function.
-# 5 is a good balance between speed and accuracy.
-###
+# Paramètres
+MAX_IMAGES_PER_ID = 5     # It's possible to change the number of images evaluated per ID in process_id_folder function. 5 is a good balance between speed and accuracy.
+MIN_PROB_THRESHOLD = 0.5
 
 DEVICE = torch.device("cpu")  # CPU only
-MAX_IMAGES_PER_ID = 5
-MIN_PROB_THRESHOLD = 0.5
 
 # Use half of CPU cores for processes
 PROCESS_WORKERS = max(1, cpu_count() // 2)
