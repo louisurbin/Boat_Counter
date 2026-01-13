@@ -7,6 +7,7 @@ from id_to_boat import load_images
 # Constante
 MAX_IMAGES_PER_ID = 5  # Nombre maximum d'images à utiliser par ID pour la prédiction de la direction
 
+model = None
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def initialize_model():
@@ -50,8 +51,10 @@ def get_direction(id_dir):
     Sum the probabilities for each class on each image and return the class with the highest total sum probability.
     '''
     global model
+    if model is None:
+        initialize_model()
 
-    images = load_images(id_dir, MAX_IMAGES_PER_ID)  # Load all images in the folder
+    images = load_images(id_dir, MAX_IMAGES_PER_ID)  # Load all images in the folder (normalization is done in load_images)
 
     total_probabilities = {0: 0.0, 1: 0.0} # 0: avant, 1: arrière
 

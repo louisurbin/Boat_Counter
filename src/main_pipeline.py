@@ -6,15 +6,12 @@ from preprocess_mask_lines_date import create_mask_lines_date, get_mask_lines_da
 from all_crossings_generator import generate_all_crossings
 from visualization_utils import visualize_line_crossings
 
-###
-# Need to add some explanations about the pipeline here, the constants, etc.
-###
-
-### Exemple d'utilisation : python3 ./src/main_pipeline.py ./data/input_video.mp4 --out output_directory --mode lgc ###
+### Exemple d'utilisation : python3 ./src/main_pipeline.py --in ./data/input_video.mp4 --out output_directory --mode lgc ###
 
 def main(video_path, output_dir, mode):
-    """Orchestre le pipeline complet."""
-
+    """
+    Orchestre le pipeline complet.
+    """
     # Step 1: Create mask and lines interactively
     print("Step 1: Creating mask and lines...")
     create_mask_lines_date(video_path, output_dir)
@@ -92,7 +89,7 @@ def main(video_path, output_dir, mode):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Main pipeline: preprocess mask/lines/date, MOG2 background subtraction, tracking, classification.")
-    parser.add_argument("video", help="Path to input video")
+    parser.add_argument("--in", help="Path to input video")
     parser.add_argument("--out", default="temp", help="Output directory")
     parser.add_argument("--mode", choices=["tracker", "lgc"], default="tracker", help="Processing mode")
     args = parser.parse_args()
