@@ -9,7 +9,7 @@ import shutil
 
 # Paramètres de détection
 MIN_AREA = 100                 # Aire minimale (px^2) pour considérer un contour comme valide
-REAL_FPS = 1/5                 # Fréquence réelle (1 image toutes les 5 secondes)
+REAL_FPS = 1/3                 # Fréquence réelle (1 image toutes les 5 secondes)
 NMS_IOU = 0.3                  # Seuil IoU pour la suppression des non-maxima (fusion doublons détection)
 
 # Paramètres de tracking 

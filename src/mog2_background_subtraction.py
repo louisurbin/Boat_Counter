@@ -6,8 +6,8 @@ import math
 import numpy as np
 
 # PARAMÈTRES
-VAR_THRESHOLD = 30                          # paramètre de variance
-HISTORY = 50                                # nombre de frames retenues par MOG2 pour estimer le fond
+VAR_THRESHOLD = 20                          # paramètre de variance
+HISTORY = 100                               # nombre de frames retenues par MOG2 pour estimer le fond
 MIN_AREA = 10**2                            # aire minimale pour considérer un cluster comme valide  
 MORPH_KERNEL_OPEN = 7                       # taille max du bruit blanc à supprimer
 MORPH_KERNEL_CLOSE = 50                     # taille max des trous noirs à combler 

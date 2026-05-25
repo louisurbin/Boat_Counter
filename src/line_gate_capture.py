@@ -132,8 +132,10 @@ def write_crossings_files(first_crops, temp_dir):
         
         oid_dir = os.path.join(extra_root, f"{gate_label}_id_{oid}")
 
-        seconds = frame_idx / REAL_FPS   ### Il faudra ajouter ici l'appel aux 2 ResNet (ou 1 + id_to_boat.py) pour obtenir le sens du bateau et la classe du bateau avec sa proba ###
-        direction = get_direction(oid_dir)  # On prédit la direction du bateau à l'aide des images extraites
+        seconds = frame_idx / REAL_FPS   ### Appel aux modèles désactivé pour l'instant (direction placée en placeholder) ###
+        # Disabled model inference for direction (temporary)
+        # direction = get_direction(oid_dir)  # On prédit la direction du bateau à l'aide des images extraites
+        direction = 0
 
         with open(os.path.join(oid_dir, "crossings.txt"), "w", encoding="utf-8") as f:
             f.write(f"{gate_label}\t{direction}\t{frame_idx}\t{int(seconds)}\n")

@@ -53,12 +53,13 @@ def main(video_path, output_dir, mode):
     visualize_line_crossings(video_path, lines_path, id_dir)
 
     # Step 5: Call id_to_boat.py to add boat type to _all_crossings.txt 
-    print("Step 5: Adding boat type to crossings...")
-    try:
-        cmd_boat = [sys.executable, os.path.join(os.path.dirname(__file__), "id_to_boat.py")]
-        subprocess.run(cmd_boat, check=True)
-    except Exception as e:
-        print(f"Warning: id_to_boat.py failed: {e}")
+    print("Step 5: Adding boat type to crossings... (skipped)")
+    # Model-based classification disabled for now: skip calling id_to_boat.py
+    # try:
+    #     cmd_boat = [sys.executable, os.path.join(os.path.dirname(__file__), "id_to_boat.py")]
+    #     subprocess.run(cmd_boat, check=True)
+    # except Exception as e:
+    #     print(f"Warning: id_to_boat.py failed: {e}")
 
     # Generate aggregated all_crossings summary
     generate_all_crossings(video_path, id_dir, output_dir)
@@ -89,8 +90,8 @@ def main(video_path, output_dir, mode):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Main pipeline: preprocess mask/lines/date, MOG2 background subtraction, tracking, classification.")
-    parser.add_argument("--in", help="Path to input video")
-    parser.add_argument("--out", default="temp", help="Output directory")
+    parser.add_argument("--video", "--in", "-i", dest="video", help="Path to input video")
+    parser.add_argument("--out", "-o", default="temp", help="Output directory")
     parser.add_argument("--mode", choices=["tracker", "lgc"], default="tracker", help="Processing mode")
     args = parser.parse_args()
     main(args.video, args.out, args.mode)

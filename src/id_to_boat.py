@@ -54,19 +54,27 @@ def process_id_folder(id_folder_path):
     Process all (or a subset of) images inside an ID folder and
     determine the most probable boat class.
     """
+    # Model inference disabled for now. Return placeholder values.
+    # The original inference code is kept below as comments for easy reactivation.
     # Load and preprocess images
-    batch = load_images(id_folder_path, MAX_IMAGES_PER_ID)
+    # batch = load_images(id_folder_path, MAX_IMAGES_PER_ID)
 
     # Get probabilities from the model for each image
     # Output shape: (num_images, num_classes)
-    probabilities = model_prediction(batch)
+    # probabilities = model_prediction(batch)
 
     # Compute mean probability for each class across images
-    mean_prob = probabilities.mean(dim=0)
+    # mean_prob = probabilities.mean(dim=0)
 
     # Class with highest mean probability
-    predicted_class = mean_prob.argmax().item()
+    # predicted_class = mean_prob.argmax().item()
 
+    # return predicted_class, mean_prob
+
+    # Placeholder return while model inference is disabled
+    num_classes = 6
+    mean_prob = torch.zeros(num_classes)
+    predicted_class = -1
     return predicted_class, mean_prob
 
 
@@ -77,6 +85,10 @@ def add2crossings(id_folder, id_predicted_class, mean_prob, min_prob_threshold):
     txt_file_path = os.path.join(id_folder, 'crossings.txt')
 
     with open(txt_file_path, 'a') as f:
+        # If model is disabled or prediction invalid, mark accordingly
+        if id_predicted_class < 0:
+            f.write("model_disabled\n")
+            return
         # If the mean probability is below the threshold, classify as noise
         if mean_prob[id_predicted_class] < min_prob_threshold:
             f.write("noise\n")
