@@ -1,22 +1,17 @@
 # Datasets (réentraînement, gérés hors git)
-datasets/*
-!datasets/
+datasets/
 
 # Vidéos d'entrée
-videos/*
-!videos/
+videos/
 
 # Résultats finaux
-output/*
-!output/
+output/
 
 # Export tableaux (généré depuis output/)
-export/*
-!export/
+export/
 
 # Fichiers intermédiaires
-temp/*
-!temp/
+temp/
 
 # Python
 __pycache__/
