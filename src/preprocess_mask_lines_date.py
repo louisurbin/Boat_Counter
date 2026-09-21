@@ -102,7 +102,7 @@ def create_mask_lines_date(video_path, out_dir="temp", window_name="Mask, Lines 
     print(" - z : annuler le dernier point du polygone ou la dernière ligne.")
     print(" - r : tout réinitialiser.")
     print(" - d : saisir la date de début (MM/DD HH:MM:SS).")
-    print(" - i : saisir le frametime (secondes, ex: 3 pour 1 image/3s).")
+    print(" - f : saisir le frametime (secondes, ex: 3 pour 1 image/3s).")
     print(" - s : sauvegarder le masque, les lignes et la date.")
     print(" - ESC : quitter sans sauvegarder.")
 
@@ -231,8 +231,8 @@ def create_mask_lines_date(video_path, out_dir="temp", window_name="Mask, Lines 
                 date_text = ""
                 line_mode = False
             continue
-        if k == ord('i'):
-            # Basculer le mode intervalle
+        if k == ord('f'):
+            # Basculer le mode frametime
             interval_input_mode = not interval_input_mode
             if interval_input_mode:
                 interval_text = ""
