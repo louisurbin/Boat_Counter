@@ -10,7 +10,7 @@ from shared_dino import process_all_ids
 GATE_WIDTH = 10  # Largeur de la zone de détection (gate) autour de la ligne
 GATE_TIMEOUT = 1  # Temps (en frames) pour considérer qu'un objet a quitté la zone
 MIN_SIDE_CROP = 20  # Taille minimale d'un côté du crop pour le sauvegarder
-REAL_FPS = 1/3      # Fréquence réelle (1 image toutes les 3 secondes)
+DEFAULT_REAL_FPS = 1/3  # Fréquence réelle par défaut (1 image toutes les 3 secondes)
 
 
 def create_gates_from_lines(lines_path):
@@ -128,12 +128,12 @@ def extract_and_save_crops(color_src, frame_annotations, temp_dir):
     return first_crops
 
 
-def write_crossings_files(first_crops, temp_dir):
+def write_crossings_files(first_crops, temp_dir, real_fps=DEFAULT_REAL_FPS):
 
     extra_root = os.path.join(temp_dir, "extractions")
     
     # Traiter tous les IDs avec UN SEUL forward DINO par ID (direction + type)
-    stats = process_all_ids(extra_root, first_crops, REAL_FPS)
+    stats = process_all_ids(extra_root, first_crops, real_fps)
     print(f"[line_gate_capture] Traitement DINO terminé: {stats['successful_ids']}/{stats['total_ids']} IDs traités, {stats['total_images']} images au total.")
 
 
@@ -152,6 +152,11 @@ def main():
     lines_path = args.lines_json
     if not lines_path or not os.path.exists(lines_path):
         sys.exit("Erreur: fichier *_lines.json introuvable.")
+
+    # Lire real_fps depuis le JSON, avec fallback sur DEFAULT_REAL_FPS
+    with open(lines_path, "r", encoding="utf-8") as f:
+        lines_meta = json.load(f)
+    real_fps = lines_meta.get("real_fps", DEFAULT_REAL_FPS)
 
     gates = create_gates_from_lines(lines_path)
     if not gates:
@@ -201,7 +206,7 @@ def main():
 
     color_src = args.color_video if args.color_video else args.video
     first_crops = extract_and_save_crops(color_src, frame_annotations, temp_dir)
-    write_crossings_files(first_crops, temp_dir)
+    write_crossings_files(first_crops, temp_dir, real_fps)
 
     print("LGC terminé.")
 

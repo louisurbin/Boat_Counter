@@ -71,6 +71,9 @@ def create_mask_lines_date(video_path, out_dir="temp", window_name="Mask, Lines 
     date_input_mode = False
     date_text = ""
     date_mode_active = False
+    interval_input_mode = False
+    interval_text = ""
+    real_fps = 1/3  # Valeur par défaut
     def on_mouse(event, x, y, flags, param):
         nonlocal poly_pts, temp_line, polygon_closed, line_mode, lines, label_input_mode, label_text
         if event == cv2.EVENT_LBUTTONDOWN:
@@ -99,6 +102,7 @@ def create_mask_lines_date(video_path, out_dir="temp", window_name="Mask, Lines 
     print(" - z : annuler le dernier point du polygone ou la dernière ligne.")
     print(" - r : tout réinitialiser.")
     print(" - d : saisir la date de début (MM/DD HH:MM:SS).")
+    print(" - i : saisir le frametime (secondes, ex: 3 pour 1 image/3s).")
     print(" - s : sauvegarder le masque, les lignes et la date.")
     print(" - ESC : quitter sans sauvegarder.")
 
@@ -110,31 +114,34 @@ def create_mask_lines_date(video_path, out_dir="temp", window_name="Mask, Lines 
         mode_text = "DATE MODE" if date_mode_active else ("LINE MODE" if line_mode else "POLY MODE")
         cv2.putText(display, mode_text, (10, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 0), 2)
 
-        if label_input_mode:
-            # Zone de saisie du label (1/3 de la largeur de l'image)
+        if label_input_mode or date_input_mode or interval_input_mode:
+            # Zone de saisie semi-transparente (superposée pour tous les modes)
             overlay = display.copy()
             box_w = max(50, int(w / 3))
             x2 = min(10 + box_w, w - 10)
             cv2.rectangle(overlay, (10, 50), (x2, 90), (0, 0, 0), -1)
             cv2.addWeighted(overlay, 0.5, display, 0.5, 0, display)
-            cv2.putText(display, f"Nom de la ligne : {label_text}", (15, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
-        if date_input_mode:
-            # Zone de saisie semi-transparente pour la date
-            overlay = display.copy()
-            box_w = max(50, int(w / 3))
-            x2 = min(10 + box_w, w - 10)
-            cv2.rectangle(overlay, (10, 50), (x2, 90), (0, 0, 0), -1)
-            cv2.addWeighted(overlay, 0.5, display, 0.5, 0, display)
-            # Afficher le format fixe et le texte saisi
-            prefix = "MM/DD HH:MM:SS :"
             font = cv2.FONT_HERSHEY_SIMPLEX
             scale = 0.7
             thickness = 2
+            
+        if label_input_mode:
+            cv2.putText(display, f"Nom de la ligne : {label_text}", (15, 80), font, 0.8, (0, 255, 255), 2)
+        if date_input_mode:
+            # Afficher le format fixe et le texte saisi
+            prefix = "MM/DD HH:MM:SS :"
             cv2.putText(display, prefix, (15, 80), font, scale, (0, 255, 255), thickness)
             if date_text:
                 (pw, ph), _ = cv2.getTextSize(prefix, font, scale, thickness)
                 x_date = 15 + pw + 8
                 cv2.putText(display, date_text, (x_date, 80), font, scale, (0, 255, 255), thickness)
+        if interval_input_mode:
+            prefix = "Frametime :"
+            cv2.putText(display, prefix, (15, 80), font, scale, (0, 255, 255), thickness)
+            if interval_text:
+                (pw, ph), _ = cv2.getTextSize(prefix, font, scale, thickness)
+                x_interval = 15 + pw + 8
+                cv2.putText(display, interval_text, (x_interval, 80), font, scale, (0, 255, 255), thickness)
         cv2.imshow(window_name, display)
         key = cv2.waitKey(20)
         # Normaliser la touche
@@ -165,6 +172,36 @@ def create_mask_lines_date(video_path, out_dir="temp", window_name="Mask, Lines 
             line_mode = False
             continue
 
+        # Gestion de la saisie de l'intervalle
+        if interval_input_mode:
+            if k is not None:
+                if k == 27:  # Échap : annuler
+                    interval_input_mode = False
+                    interval_text = ""
+                elif k == 13 or k == 10:  # Entrée : valider
+                    interval_input_mode = False
+                    try:
+                        interval_seconds = float(interval_text.strip())
+                        if interval_seconds > 0:
+                            real_fps = 1.0 / interval_seconds
+                        else:
+                            print("Erreur: l'intervalle doit être > 0. Utilisation de la valeur par défaut (1/3).")
+                            real_fps = 1/3
+                    except ValueError:
+                        print("Erreur: intervalle invalide. Utilisation de la valeur par défaut (1/3).")
+                        real_fps = 1/3
+                elif k == 8:  # Retour arrière
+                    interval_text = interval_text[:-1]
+                else:
+                    # Accepter les chiffres et le point décimal
+                    if 32 <= k <= 126:
+                        ch = chr(k)
+                        if ch.isdigit() or ch == '.':
+                            interval_text += ch
+            # Désactiver le mode ligne pendant l'édition de l'intervalle
+            line_mode = False
+            continue
+
         # Gestion de la saisie du label
         if label_input_mode:
             if k is not None:
@@ -192,6 +229,13 @@ def create_mask_lines_date(video_path, out_dir="temp", window_name="Mask, Lines 
             date_input_mode = date_mode_active
             if date_mode_active:
                 date_text = ""
+                line_mode = False
+            continue
+        if k == ord('i'):
+            # Basculer le mode intervalle
+            interval_input_mode = not interval_input_mode
+            if interval_input_mode:
+                interval_text = ""
                 line_mode = False
             continue
         elif k == 27:
@@ -226,7 +270,7 @@ def create_mask_lines_date(video_path, out_dir="temp", window_name="Mask, Lines 
             out_lines = []
             for idx, (p1, p2, label) in enumerate(lines):
                 out_lines.append({"id": idx, "p1": list(p1), "p2": list(p2), "label": label})
-            meta = {"video": os.path.basename(video_path), "image_size": [w, h], "lines": out_lines}
+            meta = {"video": os.path.basename(video_path), "image_size": [w, h], "real_fps": real_fps, "lines": out_lines}
             # Inclure start_time si fourni via la saisie 'd'
             if date_text:
                 meta['start_time'] = date_text

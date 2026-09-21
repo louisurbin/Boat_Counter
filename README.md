@@ -226,7 +226,8 @@ L'éditeur s'ouvre lors de l'étape 1 du pipeline. Contrôles :
 | `z` | Annuler le dernier point (polygone ou ligne) |
 | `r` | Tout réinitialiser |
 | `d` | Saisir la date de début (format `MM/DD HH:MM:SS`) |
-| `s` | Sauvegarder le masque, les lignes et la date |
+| `i` | Saisir le frametime (en secondes, ex: `3` pour 1 image/3s) |
+| `s` | Sauvegarder le masque, les lignes, la date et l'intervalle |
 | `ESC` | Quitter sans sauvegarder |
 
 ## Format des fichiers de sortie
@@ -282,8 +283,8 @@ pour ajuster les classes), utilisez les scripts dans `src/` :
 #   ├── noise/ (faux positifs : eau, crops trop zoomés, fragments sans information)
 
 python3 ./src/train_boat_type.py \
-    --data ../datasets \
-    --out_dir ../../models
+    --data ./datasets \
+    --out_dir ./models
 
 # Entraîner le classifieur de direction
 # Structure attendue de datasets/ :
@@ -293,8 +294,8 @@ python3 ./src/train_boat_type.py \
 #   └── none/ (optionnel, faux positifs / bruit)
 
 python3 ./src/train_direction.py \
-    --data ../datasets \
-    --out_dir ../../models
+    --data ./datasets \
+    --out_dir ./models
 ```
 
 **Arguments communs** :

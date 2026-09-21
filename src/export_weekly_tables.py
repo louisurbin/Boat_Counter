@@ -4,8 +4,8 @@ Convertit les fichiers output de comptage fluvial en tableaux hebdomadaires (for
 
 Usage :
     python3 ./src/export_weekly_tables.py [annee]
-    python3 ./src/export_weekly_tables.py --in ./output --out ./export 2024
-    python3 ./src/export_weekly_tables.py --none-mode proportionnel 2024
+    python3 ./src/export_weekly_tables.py --in ./output --out ./export 2026
+    python3 ./src/export_weekly_tables.py --none-mode proportionnel 2026
 
 - Scanne --in/<dossier_scene>/*_all_crossings.txt  (défaut : ./output)
 - Écrit   --out/<dossier_scene>/comptages_<scene>_semaine_<NN>_<annee>[_<none-mode>].txt  (défaut : ./export)
