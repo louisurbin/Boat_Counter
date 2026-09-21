@@ -3,14 +3,14 @@ import os
 import json
 import sys
 import argparse
-from tracker_utils import detect_rectangles
-from ResNet_direction import get_direction
+from detection_utils import detect_rectangles
+from shared_dino import process_all_ids
 
 # Paramètres
-GATE_WIDTH = 100  # Largeur de la zone de détection (gate) autour de la ligne
-GATE_TIMEOUT = 5  # Temps en nombre de frames pour considérer qu'un objet a quitté la zone    
+GATE_WIDTH = 10  # Largeur de la zone de détection (gate) autour de la ligne
+GATE_TIMEOUT = 1  # Temps (en frames) pour considérer qu'un objet a quitté la zone
 MIN_SIDE_CROP = 20  # Taille minimale d'un côté du crop pour le sauvegarder
-REAL_FPS = 1/5                 # Fréquence réelle (1 image toutes les 5 secondes)
+REAL_FPS = 1/3      # Fréquence réelle (1 image toutes les 3 secondes)
 
 
 def create_gates_from_lines(lines_path):
@@ -65,7 +65,7 @@ def does_rectangle_hit_gate(rect_detected, rect_gate):
     x1, y1, x2, y2 = (float(v) for v in rect_detected)
     gx1, gy1, gx2, gy2 = (float(v) for v in rect_gate)
 
-    x_min, x_max = sorted((x1, x2))   # On s'assure que x_min < x_max, car les coins de rect_detected peuvent être dans n'importe quel ordre a priori
+    x_min, x_max = sorted((x1, x2))   # On s'assure que x_min < x_max (les coins peuvent être dans n'importe quel ordre)
     y_min, y_max = sorted((y1, y2))
     gx_min, gx_max = sorted((gx1, gx2))
     gy_min, gy_max = sorted((gy1, gy2))
@@ -73,9 +73,7 @@ def does_rectangle_hit_gate(rect_detected, rect_gate):
     return not (x_max < gx_min or gx_max < x_min or y_max < gy_min or gy_max < y_min)
 
 
-# detect_rectangles() est dans tracker_utils.py et renvoie une liste de rectangles detectés dans une frame donnée
-
-def extract_and_save_crops(color_src, frame_annotations, temp_dir):  
+def extract_and_save_crops(color_src, frame_annotations, temp_dir):
 
     cap_color = cv2.VideoCapture(color_src)
 
@@ -87,7 +85,6 @@ def extract_and_save_crops(color_src, frame_annotations, temp_dir):
     os.makedirs(extra_root, exist_ok=True)
     
     frame_idx = 0
-    save_counts = {}
     first_crops = {}
 
     while True:
@@ -97,7 +94,16 @@ def extract_and_save_crops(color_src, frame_annotations, temp_dir):
         detections = frame_annotations[frame_idx] if frame_idx < len(frame_annotations) else []
         if detections:
             h, w = frame.shape[:2]
+            # Ne conserver que le plus grand rectangle par (gate_label, oid) sur cette frame:
+            # les plus petits sont souvent du bruit (vagues, ombres, sillages) et s'écrasaient
+            # tous dans le même fichier frame_idx_0.jpg.
+            best = {}
             for gate_label, oid, bbox in detections:
+                key = (gate_label, oid)
+                area = (bbox[2] - bbox[0]) * (bbox[3] - bbox[1])
+                if key not in best or area > best[key][0]:
+                    best[key] = (area, gate_label, oid, bbox)
+            for _, gate_label, oid, bbox in best.values():
                 x1, y1, x2, y2 = (int(round(v)) for v in bbox)
                 x1, y1 = max(0, x1), max(0, y1)
                 x2, y2 = min(w, x2), min(h, y2)
@@ -113,10 +119,8 @@ def extract_and_save_crops(color_src, frame_annotations, temp_dir):
                 if save_key not in first_crops:
                     first_crops[save_key] = frame_idx
 
-                cnt = save_counts.get(oid, 0)
-                fname = f"{frame_idx}_{cnt}.jpg"
+                fname = f"{frame_idx}.jpg"
                 cv2.imwrite(os.path.join(oid_dir, fname), crop, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
-                save_counts[save_key] = cnt + 1
 
         frame_idx += 1
     cap_color.release()
@@ -127,31 +131,24 @@ def extract_and_save_crops(color_src, frame_annotations, temp_dir):
 def write_crossings_files(first_crops, temp_dir):
 
     extra_root = os.path.join(temp_dir, "extractions")
-
-    for (gate_label, oid), frame_idx in sorted(first_crops.items()):
-        
-        oid_dir = os.path.join(extra_root, f"{gate_label}_id_{oid}")
-
-        seconds = frame_idx / REAL_FPS   ### Appel aux modèles désactivé pour l'instant (direction placée en placeholder) ###
-        # Disabled model inference for direction (temporary)
-        # direction = get_direction(oid_dir)  # On prédit la direction du bateau à l'aide des images extraites
-        direction = 0
-
-        with open(os.path.join(oid_dir, "crossings.txt"), "w", encoding="utf-8") as f:
-            f.write(f"{gate_label}\t{direction}\t{frame_idx}\t{int(seconds)}\n")
+    
+    # Traiter tous les IDs avec UN SEUL forward DINO par ID (direction + type)
+    stats = process_all_ids(extra_root, first_crops, REAL_FPS)
+    print(f"[line_gate_capture] Traitement DINO terminé: {stats['successful_ids']}/{stats['total_ids']} IDs traités, {stats['total_images']} images au total.")
 
 
 def parse_args():
     p = argparse.ArgumentParser(description="Line Gate Capture algorithm")
     p.add_argument("--video", "-v", default="0", help="Path to video file")
-    p.add_argument("--color_video", "-c", default=None, help="Path to real color video to extract crops from (optional). If omitted uses --video")
-    p.add_argument("--lines_json", default=None, help="Path to lines.json file (required for crossings)")
+    p.add_argument("--color_video", "-c", default=None, help="Vidéo couleur pour extraire les crops (optionnel, utilise --video par défaut)")
+    p.add_argument("--lines_json", default=None, help="Chemin vers le fichier lines.json (requis pour les crossings)")
+    p.add_argument("--temp", default="./temp", help="Dossier temporaire pour les extractions intermédiaires")
     return p.parse_args()
 
 
 def main():
     args = parse_args()
-    temp_dir = "./temp"
+    temp_dir = args.temp
     lines_path = args.lines_json
     if not lines_path or not os.path.exists(lines_path):
         sys.exit("Erreur: fichier *_lines.json introuvable.")
@@ -206,15 +203,9 @@ def main():
     first_crops = extract_and_save_crops(color_src, frame_annotations, temp_dir)
     write_crossings_files(first_crops, temp_dir)
 
-    ## puis ici etape d'export des données dans les fichiers crossings (pour calcul date) ##
-
     print("LGC terminé.")
 
 if __name__ == "__main__":
     main()
-
-
-    
- 
 
 

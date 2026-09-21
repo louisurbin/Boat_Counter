@@ -5,24 +5,24 @@ import cv2
 import math
 import numpy as np
 
-# PARAMÈTRES
-VAR_THRESHOLD = 20                          # paramètre de variance
-HISTORY = 100                               # nombre de frames retenues par MOG2 pour estimer le fond
-MIN_AREA = 10**2                            # aire minimale pour considérer un cluster comme valide  
-MORPH_KERNEL_OPEN = 7                       # taille max du bruit blanc à supprimer
-MORPH_KERNEL_CLOSE = 50                     # taille max des trous noirs à combler 
+# Paramètres
+VAR_THRESHOLD = 20                          # Paramètre de variance
+HISTORY = 100                               # Nombre de frames retenues par MOG2 pour estimer le fond
+MIN_AREA = 10**2                             # Aire minimale pour considérer un cluster comme valide
+MORPH_KERNEL_OPEN = 7                       # Taille max du bruit blanc à supprimer
+MORPH_KERNEL_CLOSE = 50                     # Taille max des trous noirs à combler
 
 def parse_args():
-    p = argparse.ArgumentParser(description="Apply MOG2 background subtraction to a video.")
-    p.add_argument("--input", "-i", type=str, required=True, help="Input video path.")
-    p.add_argument("--output", "-o", type=str, required=True, help="Output video path for the mask.")
-    p.add_argument("--mask", "-m", type=str, help="Path to the mask image to apply before MOG2.")
+    p = argparse.ArgumentParser(description="Applique la soustraction de fond MOG2 à une vidéo.")
+    p.add_argument("--input", "-i", type=str, required=True, help="Chemin de la vidéo d'entrée.")
+    p.add_argument("--output", "-o", type=str, required=True, help="Chemin de la vidéo de sortie (masque).")
+    p.add_argument("--mask", "-m", type=str, help="Chemin du masque à appliquer avant MOG2.")
     return p.parse_args()
 
 def analyze_clusters(mask, result):
     """
-    Fill bounding boxes of connected components above MIN_AREA directly in 'result'.
-    Reuses the same buffer to avoid allocations.
+    Remplit les bounding boxes des composantes connexes au-dessus de MIN_AREA directement dans 'result'.
+    Réutilise le même buffer pour éviter les allocations.
     """
     result.fill(0)
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -55,20 +55,20 @@ def main():
         cap.release()
         sys.exit(1)
 
-    # Load the mask if provided
+    # Charger le masque si fourni
     mask = None
     mask_zero = None
     if args.mask:
         mask = cv2.imread(args.mask, cv2.IMREAD_GRAYSCALE)
         if mask is None:
-            print(f"Failed to load mask: {args.mask}", file=sys.stderr)
+            print(f"Impossible de charger le masque: {args.mask}", file=sys.stderr)
             sys.exit(1)
         if mask.shape != (height, width):
-            print(f"Mask dimensions do not match video dimensions: {mask.shape} vs {(height, width)}", file=sys.stderr)
-            sys.exit(1)
-        mask_zero = (mask == 0)  # precompute once
+            print(f"Warning: Les dimensions du masque ne correspondent pas à la vidéo: {mask.shape} vs {(height, width)}. Redimensionnement...", file=sys.stderr)
+            mask = cv2.resize(mask, (width, height), interpolation=cv2.INTER_NEAREST)
+        mask_zero = (mask == 0)  # Précalculé une fois
 
-        # Compute ROI from mask
+        # Calculer la ROI à partir du masque
         ys, xs = np.where(mask != 0)
         y0, y1 = ys.min(), ys.max() + 1
         x0, x1 = xs.min(), xs.max() + 1
@@ -76,11 +76,11 @@ def main():
     else:
         roi_slice = (slice(0, height), slice(0, width))
 
-    # MOG2 background subtractor
+    # Soustracteur de fond MOG2
     subtractor = cv2.createBackgroundSubtractorMOG2(
         history=HISTORY,
         varThreshold=VAR_THRESHOLD,
-        detectShadows=True  # shadows treated as objects
+        detectShadows=True  # Les ombres sont traitées comme des objets
     )
 
     ext = out_path.suffix.lower()
@@ -99,7 +99,7 @@ def main():
     
     frame_count = 0
 
-    # buffer reused for analyze_clusters to avoid allocation
+    # Buffer réutilisé pour analyze_clusters (évite les allocations)
     rect_mask = np.zeros((height, width), dtype=np.uint8)
 
     while True:
@@ -110,24 +110,24 @@ def main():
 
         gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-        # Apply static mask (in-place)
+        # Appliquer le masque statique (in-place)
         if mask_zero is not None:
             gray_frame[mask_zero] = 0
 
-        # Apply MOG2 only on ROI
+        # Appliquer MOG2 seulement sur la ROI
         fgmask = np.zeros((height, width), dtype=np.uint8)
         roi = gray_frame[roi_slice]
         fg_roi = subtractor.apply(roi)
         fgmask[roi_slice] = fg_roi
 
-        # Morphological cleanup
+        # Nettoyage morphologique
         fgmask = cv2.morphologyEx(fgmask, cv2.MORPH_OPEN, kernel_open, iterations=1)
         fgmask = cv2.morphologyEx(fgmask, cv2.MORPH_CLOSE, kernel_close, iterations=1)
 
-        # Note: no threshold needed, shadows included as objects
+        # Pas de seuillage nécessaire, les ombres sont incluses comme objets
         analyze_clusters(fgmask, rect_mask)
 
-        # Write the first frame as black (ow white by default in MOG2)
+        # Forcer la première frame en noir (sinon blanche par défaut dans MOG2)
         if frame_count == 1:
             rect_mask.fill(0)
 
@@ -135,7 +135,7 @@ def main():
 
     cap.release()
     writer.release()
-    print(f"MOG2 mask video saved at: {out_path}")
+    print(f"Vidéo masque MOG2 sauvegardée: {out_path}")
 
 if __name__ == "__main__":
     main()

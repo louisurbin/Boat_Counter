@@ -1,0 +1,22 @@
+{
+  "video": "Archeveche_aval_juin_22_lundi_005.mp4",
+  "image_size": [
+    1280,
+    720
+  ],
+  "lines": [
+    {
+      "id": 0,
+      "p1": [
+        265,
+        448
+      ],
+      "p2": [
+        1093,
+        434
+      ],
+      "label": "line"
+    }
+  ],
+  "start_time": "06/22 05:00:04"
+}

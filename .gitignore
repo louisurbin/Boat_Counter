@@ -1,0 +1,39 @@
+# Datasets (réentraînement, gérés hors git)
+datasets/*
+!datasets/
+
+# Vidéos d'entrée
+videos/*
+!videos/
+
+# Résultats finaux
+output/*
+!output/
+
+# Export tableaux (généré depuis output/)
+export/*
+!export/
+
+# Fichiers intermédiaires
+temp/*
+!temp/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Modèles lourds (*.pth non suivis, seuls les .joblib sont gardés)
+*.pth
+*.pt
+*.bin
+*.safetensors
+*.onnx
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

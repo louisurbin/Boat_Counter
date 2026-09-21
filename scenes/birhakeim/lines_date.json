@@ -1,0 +1,22 @@
+{
+  "video": "Bir-Hakeim_aval_juin_22_lundi_005.mp4",
+  "image_size": [
+    1268,
+    720
+  ],
+  "lines": [
+    {
+      "id": 0,
+      "p1": [
+        219,
+        382
+      ],
+      "p2": [
+        931,
+        393
+      ],
+      "label": "line"
+    }
+  ],
+  "start_time": "06/22 05:00:04"
+}

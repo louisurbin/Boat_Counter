@@ -1,0 +1,22 @@
+{
+  "video": "Saint-Michel_aval juin.22.lundi_003.mp4",
+  "image_size": [
+    1280,
+    720
+  ],
+  "lines": [
+    {
+      "id": 0,
+      "p1": [
+        381,
+        392
+      ],
+      "p2": [
+        853,
+        400
+      ],
+      "label": "line"
+    }
+  ],
+  "start_time": "06/22 05:00:09"
+}

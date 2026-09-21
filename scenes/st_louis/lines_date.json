@@ -1,0 +1,22 @@
+{
+  "video": "St-Louis_aval_juin_22_lundi_005.mp4",
+  "image_size": [
+    1280,
+    720
+  ],
+  "lines": [
+    {
+      "id": 0,
+      "p1": [
+        259,
+        419
+      ],
+      "p2": [
+        1008,
+        343
+      ],
+      "label": "line"
+    }
+  ],
+  "start_time": "06/22 05:00:04"
+}

@@ -1,0 +1,22 @@
+{
+  "video": "Philippe_amont_juin_22_lundi_005.mp4",
+  "image_size": [
+    1280,
+    720
+  ],
+  "lines": [
+    {
+      "id": 0,
+      "p1": [
+        388,
+        518
+      ],
+      "p2": [
+        1112,
+        520
+      ],
+      "label": "line"
+    }
+  ],
+  "start_time": "06/22 05:00:04"
+}

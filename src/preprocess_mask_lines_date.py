@@ -4,13 +4,6 @@ import os
 import argparse
 import json
 
-def get_lines_date_path(temp_dir):
-    """Get the path to the lines and date JSON file."""
-    for fname in os.listdir(temp_dir):
-        if fname.endswith('_lines_date.json'):
-            return os.path.join(temp_dir, fname)
-    return None
-
 def get_mask_lines_date_paths(video_path, out_dir):
     """Génère les chemins pour le masque et les lignes."""
     base = os.path.splitext(os.path.basename(video_path))[0]
@@ -37,15 +30,15 @@ def create_mask_lines_date(video_path, out_dir="temp", window_name="Mask, Lines 
 
     # Créer une fenêtre OpenCV avec une taille appropriée
     cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
-    cv2.resizeWindow(window_name, w, h)  # Taille par défaut plus grande
+    cv2.resizeWindow(window_name, w, h)
 
     def draw():
         nonlocal display
         display = frame.copy()
-        polygon_color = (255, 0, 0)  # blue for polygon / water zone
-        line_color = (0, 0, 255)     # red for counting lines
+        polygon_color = (255, 0, 0)  # Bleu pour le polygone / zone d'eau
+        line_color = (0, 0, 255)     # Rouge pour les lignes de comptage
 
-        # overlay mask preview if polygon closed or has points
+        # Aperçu du masque si le polygone est fermé ou a des points
         if poly_pts:
             pts = np.array(poly_pts, np.int32).reshape((-1, 1, 2))
             if polygon_closed:
@@ -58,19 +51,19 @@ def create_mask_lines_date(video_path, out_dir="temp", window_name="Mask, Lines 
             for p in poly_pts:
                 cv2.circle(display, tuple(p), 4, polygon_color, -1)
 
-         # draw lines
-        for idx, (p1, p2, label) in enumerate(lines):
+        # Dessiner les lignes
+        for p1, p2, label in lines:
             cv2.line(display, tuple(p1), tuple(p2), line_color, 2)
             if label:
                 cx, cy = (p1[0] + p2[0]) // 2, (p1[1] + p2[1]) // 2
                 cv2.putText(display, label, (cx + 5, cy - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.6, line_color, 2)
 
-    # temp line preview 
+    # Aperçu de la ligne en cours
         if temp_line:
             cv2.circle(display, tuple(temp_line[0]), 4, (255, 0, 0), -1)
             if len(temp_line) >= 2:
                 cv2.circle(display, tuple(temp_line[1]), 4, (255, 0, 0), -1)
-                # Affiche le trait rouge dès que les deux points sont placés
+                # Afficher le trait rouge dès que les deux points sont placés
                 cv2.line(display, tuple(temp_line[0]), tuple(temp_line[1]), (0, 0, 255), 2)
 
     label_input_mode = False
@@ -93,32 +86,32 @@ def create_mask_lines_date(video_path, out_dir="temp", window_name="Mask, Lines 
             if not polygon_closed and len(poly_pts) >= 3:
                 polygon_closed = True
 
-    # Initialize temp_line as empty list but treat it as "line-mode" toggle via 'l' key
+    # Initialiser temp_line comme liste vide (le mode ligne s'active via la touche 'l')
     temp_line = []
 
     cv2.setMouseCallback(window_name, on_mouse)
 
     draw()
     print("Instructions:")
-    print(" - Left click: add polygon point (when polygon open) or line point (in line mode).")
-    print(" - Right click: close polygon (when >=3 points).")
-    print(" - l : enter line mode (next two left clicks create a line).")
-    print(" - z : undo last polygon point or last line.")
-    print(" - r : reset everything.")
-    print(" - d : enter date input mode (MM/DD HH:MM:SS) to set video start time.")
-    print(" - s : save mask, lines and date to temp/.")
-    print(" - ESC : quit without saving.")
+    print(" - Clic gauche : ajouter un point au polygone (ou un point de ligne en mode ligne).")
+    print(" - Clic droit : fermer le polygone (>= 3 points).")
+    print(" - l : mode ligne (les deux prochains clics gauches créent une ligne).")
+    print(" - z : annuler le dernier point du polygone ou la dernière ligne.")
+    print(" - r : tout réinitialiser.")
+    print(" - d : saisir la date de début (MM/DD HH:MM:SS).")
+    print(" - s : sauvegarder le masque, les lignes et la date.")
+    print(" - ESC : quitter sans sauvegarder.")
 
     line_mode = False
 
     while True:
         draw()
-        # show mode (DATE MODE if date_mode_active) at top-left
+        # Afficher le mode en haut à gauche
         mode_text = "DATE MODE" if date_mode_active else ("LINE MODE" if line_mode else "POLY MODE")
         cv2.putText(display, mode_text, (10, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 0), 2)
 
         if label_input_mode:
-            # Afficher la zone de saisie du label (1/3 de la largeur de l'image)
+            # Zone de saisie du label (1/3 de la largeur de l'image)
             overlay = display.copy()
             box_w = max(50, int(w / 3))
             x2 = min(10 + box_w, w - 10)
@@ -126,14 +119,13 @@ def create_mask_lines_date(video_path, out_dir="temp", window_name="Mask, Lines 
             cv2.addWeighted(overlay, 0.5, display, 0.5, 0, display)
             cv2.putText(display, f"Nom de la ligne : {label_text}", (15, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
         if date_input_mode:
-            # Afficher la zone de saisie semi-transparente comme pour le label, mais pour la date
+            # Zone de saisie semi-transparente pour la date
             overlay = display.copy()
-            # box width = 1/3 of frame width (same as label box)
             box_w = max(50, int(w / 3))
             x2 = min(10 + box_w, w - 10)
             cv2.rectangle(overlay, (10, 50), (x2, 90), (0, 0, 0), -1)
             cv2.addWeighted(overlay, 0.5, display, 0.5, 0, display)
-            # show fixed format hint and current typed text, place date_text after prefix
+            # Afficher le format fixe et le texte saisi
             prefix = "MM/DD HH:MM:SS :"
             font = cv2.FONT_HERSHEY_SIMPLEX
             scale = 0.7
@@ -145,57 +137,57 @@ def create_mask_lines_date(video_path, out_dir="temp", window_name="Mask, Lines 
                 cv2.putText(display, date_text, (x_date, 80), font, scale, (0, 255, 255), thickness)
         cv2.imshow(window_name, display)
         key = cv2.waitKey(20)
-        # normalize key
+        # Normaliser la touche
         if key == -1:
             k = None
         else:
             k = key & 0xFF
 
-        # date input handling (use k)
+        # Gestion de la saisie de la date
         if date_input_mode:
             if k is not None:
-                if k == 27:  # Esc: cancel
+                if k == 27:  # Échap : annuler
                     date_input_mode = False
                     date_text = ""
-                elif k == 13 or k == 10:  # Enter: accept and close date box but keep DATE MODE active
+                elif k == 13 or k == 10:  # Entrée : valider et garder le mode DATE actif
                     date_input_mode = False
                     date_text = date_text.strip()
                     date_mode_active = True
-                elif k == 8:  # Backspace
+                elif k == 8:  # Retour arrière
                     date_text = date_text[:-1]
                 else:
-                    # accept digits and a few separators
+                    # Accepter les chiffres et quelques séparateurs
                     if 32 <= k <= 126:
                         ch = chr(k)
                         if ch.isdigit() or ch in ['/', ':', ' ', '-']:
                             date_text += ch
-            # ensure line mode disabled while editing date
+            # Désactiver le mode ligne pendant l'édition de la date
             line_mode = False
             continue
 
-        # label input handling (use k)
+        # Gestion de la saisie du label
         if label_input_mode:
             if k is not None:
-                if k == 13 or k == 10:  # Enter
+                if k == 13 or k == 10:  # Entrée
                     lines.append((temp_line[0], temp_line[1], label_text.strip()))
                     temp_line.clear()
                     label_input_mode = False
                     label_text = ""
-                elif k == 27:  # Esc cancel
+                elif k == 27:  # Échap : annuler
                     temp_line.clear()
                     label_input_mode = False
                     label_text = ""
-                elif k == 8:  # Backspace
+                elif k == 8:  # Retour arrière
                     label_text = label_text[:-1]
                 elif 32 <= k <= 126:
                     label_text += chr(k)
             continue
 
-        # general keys (use k)
+        # Touches générales
         if k is None:
             continue
         if k == ord('d'):
-            # toggle persistent date mode; opening it also enables the input box
+            # Basculer le mode date persistant; l'ouvre active aussi la saisie
             date_mode_active = not date_mode_active
             date_input_mode = date_mode_active
             if date_mode_active:
@@ -235,21 +227,19 @@ def create_mask_lines_date(video_path, out_dir="temp", window_name="Mask, Lines 
             for idx, (p1, p2, label) in enumerate(lines):
                 out_lines.append({"id": idx, "p1": list(p1), "p2": list(p2), "label": label})
             meta = {"video": os.path.basename(video_path), "image_size": [w, h], "lines": out_lines}
-            # include start_time if provided via GUI 'd' input
+            # Inclure start_time si fourni via la saisie 'd'
             if date_text:
                 meta['start_time'] = date_text
             with open(json_path, "w", encoding="utf-8") as f:
                 json.dump(meta, f, ensure_ascii=False, indent=2)
-            print(f"Saved mask -> {mask_path}")
-            print(f"Saved lines -> {json_path}")
-            print(f"Saved date -> {json_path}")
-            # start_time handled via 'd' GUI input (date_text)
+            print(f"Masque sauvegardé -> {mask_path}")
+            print(f"Lignes et date sauvegardées -> {json_path}")
     cv2.destroyAllWindows()
     return
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Create water mask, counting lines and date from first frame.")
-    parser.add_argument("video", help="Path to video in data/")
-    parser.add_argument("--out", default="temp", help="Output directory (default: temp/)")
+    parser = argparse.ArgumentParser(description="Création du masque, des lignes de comptage et de la date à partir de la première frame.")
+    parser.add_argument("video", help="Chemin vers la vidéo")
+    parser.add_argument("--out", default="temp", help="Dossier de sortie (défaut: temp/)")
     args = parser.parse_args()
     create_mask_lines_date(args.video, args.out)
